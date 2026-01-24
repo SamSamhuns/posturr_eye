@@ -1,0 +1,160 @@
+#!/bin/bash
+
+# Posturr Build Script
+# Compiles the app and creates the app bundle
+
+set -e
+
+# Configuration
+APP_NAME="Posturr"
+BUNDLE_ID="com.posturr.app"
+VERSION="1.0.0"
+MIN_MACOS="13.0"
+
+# Directories
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BUILD_DIR="$SCRIPT_DIR/build"
+APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
+CONTENTS="$APP_BUNDLE/Contents"
+MACOS_DIR="$CONTENTS/MacOS"
+RESOURCES_DIR="$CONTENTS/Resources"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}Building $APP_NAME v$VERSION${NC}"
+echo ""
+
+# Clean previous build
+if [ -d "$BUILD_DIR" ]; then
+    echo "Cleaning previous build..."
+    rm -rf "$BUILD_DIR"
+fi
+
+# Create directory structure
+echo "Creating app bundle structure..."
+mkdir -p "$MACOS_DIR"
+mkdir -p "$RESOURCES_DIR"
+
+# Compile Swift code
+echo "Compiling main.swift..."
+swiftc \
+    -O \
+    -whole-module-optimization \
+    -target arm64-apple-macos$MIN_MACOS \
+    -sdk $(xcrun --show-sdk-path) \
+    -framework AppKit \
+    -framework AVFoundation \
+    -framework Vision \
+    -framework CoreImage \
+    -o "$MACOS_DIR/$APP_NAME" \
+    "$SCRIPT_DIR/main.swift"
+
+# Also compile for x86_64 and create universal binary (if on Apple Silicon)
+if [[ $(uname -m) == "arm64" ]]; then
+    echo "Creating universal binary (arm64 + x86_64)..."
+    swiftc \
+        -O \
+        -whole-module-optimization \
+        -target x86_64-apple-macos$MIN_MACOS \
+        -sdk $(xcrun --show-sdk-path) \
+        -framework AppKit \
+        -framework AVFoundation \
+        -framework Vision \
+        -framework CoreImage \
+        -o "$MACOS_DIR/${APP_NAME}_x86" \
+        "$SCRIPT_DIR/main.swift"
+
+    # Create universal binary
+    lipo -create -output "$MACOS_DIR/$APP_NAME" \
+        "$MACOS_DIR/$APP_NAME" \
+        "$MACOS_DIR/${APP_NAME}_x86"
+
+    # Clean up
+    rm "$MACOS_DIR/${APP_NAME}_x86"
+fi
+
+# Create Info.plist
+echo "Creating Info.plist..."
+cat > "$CONTENTS/Info.plist" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>$APP_NAME</string>
+    <key>CFBundleIdentifier</key>
+    <string>$BUNDLE_ID</string>
+    <key>CFBundleName</key>
+    <string>$APP_NAME</string>
+    <key>CFBundleDisplayName</key>
+    <string>$APP_NAME</string>
+    <key>CFBundleVersion</key>
+    <string>$VERSION</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$VERSION</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>$MIN_MACOS</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>Posturr needs camera access to monitor your posture and blur the screen when you slouch.</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+</dict>
+</plist>
+EOF
+
+# Copy icon if it exists
+if [ -f "$SCRIPT_DIR/AppIcon.icns" ]; then
+    echo "Copying app icon..."
+    cp "$SCRIPT_DIR/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
+elif [ -d "$SCRIPT_DIR/Posturr.iconset" ]; then
+    echo "Converting iconset to icns..."
+    iconutil -c icns -o "$RESOURCES_DIR/AppIcon.icns" "$SCRIPT_DIR/Posturr.iconset"
+else
+    echo -e "${YELLOW}Warning: No app icon found. The app will use default icon.${NC}"
+fi
+
+# Set executable permission
+chmod +x "$MACOS_DIR/$APP_NAME"
+
+# Verify the build
+echo ""
+echo "Verifying build..."
+if [ -f "$MACOS_DIR/$APP_NAME" ]; then
+    echo -e "${GREEN}Build successful!${NC}"
+    echo ""
+    echo "App bundle: $APP_BUNDLE"
+    echo "Size: $(du -sh "$APP_BUNDLE" | cut -f1)"
+
+    # Show architecture info
+    echo "Architectures: $(lipo -archs "$MACOS_DIR/$APP_NAME")"
+    echo ""
+
+    # Optional: create release zip
+    if [ "$1" == "--release" ]; then
+        echo "Creating release archive..."
+        RELEASE_NAME="$APP_NAME-v$VERSION.zip"
+        cd "$BUILD_DIR"
+        zip -r -q "$RELEASE_NAME" "$APP_NAME.app"
+        echo -e "${GREEN}Release archive created: $BUILD_DIR/$RELEASE_NAME${NC}"
+    fi
+else
+    echo -e "${RED}Build failed!${NC}"
+    exit 1
+fi
+
+echo ""
+echo "To run the app:"
+echo "  open $APP_BUNDLE"
+echo ""
+echo "To install:"
+echo "  cp -r $APP_BUNDLE /Applications/"
