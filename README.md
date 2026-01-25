@@ -54,6 +54,7 @@ Click the menu bar icon to access:
 - **Recalibrate** - Reset your baseline posture (sit up straight, then click)
 - **Sensitivity** - Adjust how sensitive the slouch detection is (Low, Medium, High, Very High)
 - **Dead Zone** - Set the tolerance before blur kicks in (None, Small, Medium, Large)
+- **Compatibility Mode** - Use public macOS APIs for blur (try this if blur doesn't appear)
 - **Quit** - Exit the application (or press **Escape** anywhere)
 
 ### Tips for Best Results
@@ -72,7 +73,7 @@ Posturr uses Apple's Vision framework to detect body pose landmarks:
 3. **Posture Analysis**: Measures the vertical distance between nose and shoulders
 4. **Blur Response**: Applies screen blur proportional to posture deviation
 
-The screen blur uses macOS's private CoreGraphics API for efficient, system-level blur that covers all windows and displays.
+The screen blur uses macOS's private CoreGraphics API by default for efficient, system-level blur. If the blur doesn't appear on your system, enable **Compatibility Mode** from the menu to use `NSVisualEffectView` instead.
 
 ## Building from Source
 
@@ -152,5 +153,6 @@ Contributions are welcome! Please feel free to submit issues and pull requests.
 ## Acknowledgments
 
 - Built with Apple's Vision framework for body pose detection
-- Uses private CoreGraphics API for efficient screen blur
+- Uses private CoreGraphics API for blur, with NSVisualEffectView fallback
 - Inspired by the need for better posture during long coding sessions
+- Thanks to [@wklm](https://github.com/wklm) for the compatibility mode implementation

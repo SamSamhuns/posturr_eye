@@ -318,9 +318,11 @@ class CalibrationWindowController: NSObject {
 // MARK: - App Delegate
 class AppDelegate: NSObject, NSApplicationDelegate {
     var windows: [NSWindow] = []
+    var blurViews: [NSVisualEffectView] = []
     var statusItem: NSStatusItem!
     var statusMenuItem: NSMenuItem!
     var enabledMenuItem: NSMenuItem!
+    var compatibilityModeMenuItem: NSMenuItem!
 
     // Posture tracking
     var captureSession: AVCaptureSession?
@@ -344,6 +346,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Settings
     var sensitivity: CGFloat = 0.85
     var deadZone: CGFloat = 0.03
+    var useCompatibilityMode = false
 
     // Detection state
     var lastDetectionTime = Date()
@@ -503,6 +506,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
+        // Compatibility Mode
+        compatibilityModeMenuItem = NSMenuItem(title: "Compatibility Mode", action: #selector(toggleCompatibilityMode), keyEquivalent: "")
+        compatibilityModeMenuItem.target = self
+        compatibilityModeMenuItem.state = useCompatibilityMode ? .on : .off
+        menu.addItem(compatibilityModeMenuItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         // Quit
         let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
@@ -609,6 +620,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc func toggleCompatibilityMode() {
+        useCompatibilityMode.toggle()
+        compatibilityModeMenuItem.state = useCompatibilityMode ? .on : .off
+
+        // Reset blur state when switching modes
+        currentBlurRadius = 0
+        for blurView in blurViews {
+            blurView.alphaValue = 0
+        }
+        for window in windows {
+            if let getConnectionID = cgsMainConnectionID,
+               let setBlurRadius = cgsSetWindowBackgroundBlurRadius {
+                let cid = getConnectionID()
+                _ = setBlurRadius(cid, UInt32(window.windowNumber), 0)
+            }
+            window.backgroundColor = .clear
+        }
+    }
+
     @objc func quit() {
         captureSession?.stopRunning()
         NSApplication.shared.terminate(nil)
@@ -623,12 +653,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             window.ignoresMouseEvents = true
             window.hasShadow = false
-            let blurView = NSView(frame: NSRect(origin: .zero, size: screen.frame.size))
-            blurView.wantsLayer = true
-            blurView.layer?.backgroundColor = .clear
+
+            // Use NSVisualEffectView - supports both private API mode and compatibility mode
+            let blurView = NSVisualEffectView(frame: NSRect(origin: .zero, size: screen.frame.size))
+            blurView.blendingMode = .behindWindow
+            blurView.material = .fullScreenUI
+            blurView.state = .active
+            blurView.alphaValue = 0  // Start invisible
+
             window.contentView = blurView
             window.orderFrontRegardless()
             windows.append(window)
+            blurViews.append(blurView)
         }
     }
 
@@ -642,18 +678,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             currentBlurRadius = max(currentBlurRadius - 3, targetBlurRadius)
         }
 
-        // Use private APIs if available, otherwise fall back to alpha overlay
-        if let getConnectionID = cgsMainConnectionID,
-           let setBlurRadius = cgsSetWindowBackgroundBlurRadius {
+        if useCompatibilityMode {
+            // Compatibility mode: use NSVisualEffectView alphaValue (public API)
+            let alpha = CGFloat(currentBlurRadius) / 64.0
+            for blurView in blurViews {
+                blurView.alphaValue = alpha
+            }
+        } else if let getConnectionID = cgsMainConnectionID,
+                  let setBlurRadius = cgsSetWindowBackgroundBlurRadius {
+            // Default: use private CoreGraphics API for blur
             let cid = getConnectionID()
             for window in windows {
                 _ = setBlurRadius(cid, UInt32(window.windowNumber), currentBlurRadius)
             }
         } else {
-            // Fallback: use semi-transparent overlay instead of blur
-            let alpha = CGFloat(currentBlurRadius) / 64.0 * 0.7
-            for window in windows {
-                window.backgroundColor = NSColor.black.withAlphaComponent(alpha)
+            // Fallback if private APIs unavailable: use NSVisualEffectView
+            let alpha = CGFloat(currentBlurRadius) / 64.0
+            for blurView in blurViews {
+                blurView.alphaValue = alpha
             }
         }
     }
