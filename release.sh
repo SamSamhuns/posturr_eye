@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Posturr Release Script
-# Creates a new release with build, DMG, and GitHub release
+# Creates a new release with build, signing, notarization, DMG, and GitHub release
 
 set -e
 
@@ -14,6 +14,10 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
+
+# Code signing identity
+DEVELOPER_ID="Developer ID Application: Thomas Johnell (KBF2YGT2KP)"
+NOTARY_PROFILE="notarytool-posturr"
 
 # Check for required dependencies
 check_dependency() {
@@ -85,6 +89,13 @@ if ! command -v git &> /dev/null; then
     exit 1
 fi
 
+# Check for Developer ID certificate
+if ! security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
+    echo -e "${RED}Error: Developer ID Application certificate not found${NC}"
+    echo -e "Please install your Developer ID certificate first"
+    exit 1
+fi
+
 # Get version from argument or prompt
 VERSION="${1:-}"
 if [ -z "$VERSION" ]; then
@@ -132,11 +143,37 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
 fi
 
 # Step 1: Build
-echo -e "${GREEN}[1/5] Building app...${NC}"
-./build.sh --release
+echo -e "${GREEN}[1/7] Building app...${NC}"
+./build.sh
 
-# Step 2: Create DMG
-echo -e "${GREEN}[2/5] Creating DMG...${NC}"
+# Step 2: Code sign with Developer ID
+echo -e "${GREEN}[2/7] Signing app with Developer ID...${NC}"
+codesign --force --options runtime --sign "$DEVELOPER_ID" --timestamp "build/Posturr.app"
+
+# Verify signature
+echo "Verifying signature..."
+codesign --verify --deep --strict "build/Posturr.app"
+echo -e "${GREEN}Signature verified${NC}"
+
+# Step 3: Create ZIP for notarization
+echo -e "${GREEN}[3/7] Creating ZIP for notarization...${NC}"
+rm -f "build/$ZIP_NAME"
+cd build && zip -r "$ZIP_NAME" Posturr.app && cd ..
+
+# Step 4: Submit for notarization
+echo -e "${GREEN}[4/7] Submitting for notarization (this may take a few minutes)...${NC}"
+xcrun notarytool submit "build/$ZIP_NAME" --keychain-profile "$NOTARY_PROFILE" --wait
+
+# Step 5: Staple the notarization ticket
+echo -e "${GREEN}[5/7] Stapling notarization ticket...${NC}"
+xcrun stapler staple "build/Posturr.app"
+
+# Recreate ZIP with stapled app
+rm -f "build/$ZIP_NAME"
+cd build && zip -r "$ZIP_NAME" Posturr.app && cd ..
+
+# Step 6: Create DMG (with notarized app)
+echo -e "${GREEN}[6/7] Creating DMG...${NC}"
 hdiutil detach /Volumes/Posturr 2>/dev/null || true
 rm -f "build/$DMG_NAME"
 
@@ -150,17 +187,20 @@ create-dmg \
     "build/$DMG_NAME" \
     build/Posturr.app
 
-# Create zip with correct version name
-rm -f "build/$ZIP_NAME"
-cd build && zip -r "$ZIP_NAME" Posturr.app && cd ..
+# Sign and notarize the DMG too
+echo "Signing DMG..."
+codesign --force --sign "$DEVELOPER_ID" --timestamp "build/$DMG_NAME"
 
-# Step 3: Create git tag
-echo -e "${GREEN}[3/5] Creating git tag...${NC}"
+echo "Notarizing DMG..."
+xcrun notarytool submit "build/$DMG_NAME" --keychain-profile "$NOTARY_PROFILE" --wait
+
+echo "Stapling DMG..."
+xcrun stapler staple "build/$DMG_NAME"
+
+# Step 7: Create git tag and GitHub release
+echo -e "${GREEN}[7/7] Creating git tag and GitHub release...${NC}"
 git tag "$TAG"
 git push origin "$TAG"
-
-# Step 4: Create GitHub release
-echo -e "${GREEN}[4/5] Creating GitHub release...${NC}"
 
 RELEASE_NOTES="## Posturr $TAG
 
@@ -171,21 +211,22 @@ A macOS app that blurs your screen when you slouch.
 - Multi-screen corner calibration for personalized detection
 - Progressive blur that eases in gently
 - Adjustable sensitivity and dead zone
+- Camera selection (supports external webcams)
 - Universal binary (Apple Silicon + Intel)
+- **Signed and notarized** by Apple
 
 ### Installation
 
 1. Download the \`.dmg\` or \`.zip\`
 2. Drag \`Posturr.app\` to Applications
-3. **First launch**: Right-click → Open → Click \"Open\"
+3. Launch normally - no Gatekeeper warning!
 4. Grant camera permission, then complete calibration
-5. Look at each corner and press Space
 
 ### Requirements
 - macOS 13.0 (Ventura) or later"
 
 if [ "$SKIP_GH_RELEASE" = "true" ]; then
-    echo -e "${YELLOW}[5/5] Skipping GitHub release (not authenticated)${NC}"
+    echo -e "${YELLOW}Skipping GitHub release (not authenticated)${NC}"
     echo ""
     echo "To create the release manually, run:"
     echo -e "${CYAN}gh auth login${NC}"
@@ -201,12 +242,13 @@ else
         --title "Posturr $TAG" \
         --notes "$RELEASE_NOTES"
 
-    echo -e "${GREEN}[5/5] Release created!${NC}"
+    echo -e "${GREEN}Release created!${NC}"
 fi
 
 echo ""
 echo -e "${GREEN}═══════════════════════════════════════${NC}"
 echo -e "${GREEN}  Release $TAG complete!${NC}"
+echo -e "${GREEN}  App is signed and notarized!${NC}"
 echo -e "${GREEN}═══════════════════════════════════════${NC}"
 echo ""
 echo "Files:"
