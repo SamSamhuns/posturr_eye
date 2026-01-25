@@ -796,27 +796,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func updateBlur() {
-        // Smooth transition - ease in slowly, ease out faster
+        // Smooth transition - ease in slowly, ease out smoothly
         if currentBlurRadius < targetBlurRadius {
-            // Slow ease-in: +1 per frame (60fps = ~1 second to reach blur 60)
+            // Slow ease-in: +1 per frame
             currentBlurRadius = min(currentBlurRadius + 1, targetBlurRadius)
         } else if currentBlurRadius > targetBlurRadius {
-            // Faster ease-out: -3 per frame
-            currentBlurRadius = max(currentBlurRadius - 3, targetBlurRadius)
+            // Smooth ease-out: always decrement by 1 for smoothest fade
+            currentBlurRadius = max(currentBlurRadius - 1, targetBlurRadius)
         }
+
+        // Calculate alpha for NSVisualEffectView modes
+        // Square root curve for faster initial ramp, smooth fade
+        let normalizedBlur = CGFloat(currentBlurRadius) / 64.0
+        let visualEffectAlpha = min(1.0, sqrt(normalizedBlur) * 1.2)
 
         #if APP_STORE
         // App Store build: always use NSVisualEffectView (public API)
-        let alpha = CGFloat(currentBlurRadius) / 64.0
         for blurView in blurViews {
-            blurView.alphaValue = alpha
+            blurView.alphaValue = visualEffectAlpha
         }
         #else
         if useCompatibilityMode {
             // Compatibility mode: use NSVisualEffectView alphaValue (public API)
-            let alpha = CGFloat(currentBlurRadius) / 64.0
             for blurView in blurViews {
-                blurView.alphaValue = alpha
+                blurView.alphaValue = visualEffectAlpha
             }
         } else if let getConnectionID = cgsMainConnectionID,
                   let setBlurRadius = cgsSetWindowBackgroundBlurRadius {
@@ -827,9 +830,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         } else {
             // Fallback if private APIs unavailable: use NSVisualEffectView
-            let alpha = CGFloat(currentBlurRadius) / 64.0
             for blurView in blurViews {
-                blurView.alphaValue = alpha
+                blurView.alphaValue = visualEffectAlpha
             }
         }
         #endif
@@ -999,9 +1001,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             consecutiveGoodFrames += 1
             consecutiveBadFrames = 0
 
+            // Start fading blur immediately when posture improves
+            targetBlurRadius = 0
+
             if consecutiveGoodFrames >= frameThreshold {
                 isCurrentlySlouching = false
-                targetBlurRadius = 0
 
                 DispatchQueue.main.async {
                     self.statusMenuItem.title = "Status: Good Posture"
