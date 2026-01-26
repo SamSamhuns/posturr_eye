@@ -44,6 +44,7 @@ enum PauseReason: Equatable {
     case noProfile
     case onTheGo
     case cameraDisconnected
+    case screenLocked
 }
 
 // MARK: - App State

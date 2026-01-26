@@ -90,6 +90,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var cameraConnectedObserver: NSObjectProtocol?
     var cameraDisconnectedObserver: NSObjectProtocol?
 
+    // Screen lock observers
+    var screenLockObserver: NSObjectProtocol?
+    var screenUnlockObserver: NSObjectProtocol?
+    var stateBeforeLock: AppState?
+
     // Detection state
     var lastDetectionTime = Date()
     var consecutiveBadFrames = 0
@@ -194,6 +199,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 statusMenuItem.title = "Status: Paused (on the go - recalibrate)"
             case .cameraDisconnected:
                 statusMenuItem.title = "Status: Camera disconnected"
+            case .screenLocked:
+                statusMenuItem.title = "Status: Paused (screen locked)"
             }
             statusItem.button?.image = NSImage(systemSymbolName: "pause.circle", accessibilityDescription: "Paused")
         }
@@ -236,6 +243,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         registerDisplayChangeCallback()
         registerCameraChangeNotifications()
+        registerScreenLockNotifications()
 
         Timer.scheduledTimer(withTimeInterval: 0.033, repeats: true) { [weak self] _ in
             self?.updateBlur()
@@ -598,6 +606,61 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             print("[Camera] No cameras remaining!")
             state = .paused(.cameraDisconnected)
+        }
+    }
+
+    // MARK: - Screen Lock Detection
+
+    func registerScreenLockNotifications() {
+        let dnc = DistributedNotificationCenter.default()
+
+        screenLockObserver = dnc.addObserver(
+            forName: NSNotification.Name("com.apple.screenIsLocked"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleScreenLocked()
+        }
+
+        screenUnlockObserver = dnc.addObserver(
+            forName: NSNotification.Name("com.apple.screenIsUnlocked"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleScreenUnlocked()
+        }
+    }
+
+    func handleScreenLocked() {
+        print("[ScreenLock] Screen locked")
+
+        // Only save state and pause if we're in an active state
+        guard state.isActive || (state != .disabled && state != .paused(.screenLocked)) else {
+            print("[ScreenLock] Already paused or disabled, not changing state")
+            return
+        }
+
+        stateBeforeLock = state
+        print("[ScreenLock] Saved state: \(state), pausing")
+        state = .paused(.screenLocked)
+    }
+
+    func handleScreenUnlocked() {
+        print("[ScreenLock] Screen unlocked")
+
+        // Only restore if we paused due to screen lock
+        guard case .paused(.screenLocked) = state else {
+            print("[ScreenLock] Not paused due to screen lock, ignoring")
+            return
+        }
+
+        if let previousState = stateBeforeLock {
+            print("[ScreenLock] Restoring previous state: \(previousState)")
+            state = previousState
+            stateBeforeLock = nil
+        } else {
+            print("[ScreenLock] No saved state, transitioning to monitoring")
+            state = .monitoring
         }
     }
 
