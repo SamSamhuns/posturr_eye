@@ -82,6 +82,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var showInDock = false
     var pauseOnTheGo = false
     var settingsWindowController = SettingsWindowController()
+    var analyticsWindowController: AnalyticsWindowController?
 
     // Display management
     var displayDebounceTimer: Timer?
@@ -285,6 +286,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(recalibrateMenuItem)
 
         menu.addItem(NSMenuItem.separator())
+        
+        let statsItem = NSMenuItem(title: "Statistics...", action: #selector(showAnalytics), keyEquivalent: "s")
+        statsItem.target = self
+        menu.addItem(statsItem)
 
         let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
@@ -320,6 +325,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func recalibrate() {
         startCalibration()
+    }
+
+    @objc func showAnalytics() {
+        if analyticsWindowController == nil {
+            analyticsWindowController = AnalyticsWindowController()
+        }
+        
+        analyticsWindowController?.showWindow(nil)
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc func openSettings() {
@@ -1163,11 +1178,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let threshold = isCurrentlySlouching ? exitThreshold : enterThreshold
         let isBadPosture = slouchAmount > threshold
 
+        // Track analytics
+        AnalyticsManager.shared.trackTime(interval: frameInterval, isSlouching: isCurrentlySlouching)
+
         if isBadPosture {
             consecutiveBadFrames += 1
             consecutiveGoodFrames = 0
 
             if consecutiveBadFrames >= frameThreshold {
+                if !isCurrentlySlouching {
+                    AnalyticsManager.shared.recordSlouchEvent()
+                }
                 isCurrentlySlouching = true
 
                 // Calculate severity: how far past the dead zone (0 to 1)
