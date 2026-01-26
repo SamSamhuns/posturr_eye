@@ -3,7 +3,7 @@ import CoreGraphics
 
 // MARK: - Settings Keys
 enum SettingsKeys {
-    static let sensitivity = "sensitivity"
+    static let intensity = "intensity"
     static let deadZone = "deadZone"
     static let useCompatibilityMode = "useCompatibilityMode"
     static let blurWhenAway = "blurWhenAway"

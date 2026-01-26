@@ -70,7 +70,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var postureRange: CGFloat = 0.2
 
     // Settings
-    var sensitivity: CGFloat = 0.85
+    var intensity: CGFloat = 1.0
     var deadZone: CGFloat = 0.03
     var useCompatibilityMode = false
     var blurWhenAway = false
@@ -670,7 +670,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func saveSettings() {
         let defaults = UserDefaults.standard
-        defaults.set(sensitivity, forKey: SettingsKeys.sensitivity)
+        defaults.set(intensity, forKey: SettingsKeys.intensity)
         defaults.set(deadZone, forKey: SettingsKeys.deadZone)
         defaults.set(useCompatibilityMode, forKey: SettingsKeys.useCompatibilityMode)
         defaults.set(blurWhenAway, forKey: SettingsKeys.blurWhenAway)
@@ -684,8 +684,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func loadSettings() {
         let defaults = UserDefaults.standard
 
-        if defaults.object(forKey: SettingsKeys.sensitivity) != nil {
-            sensitivity = defaults.double(forKey: SettingsKeys.sensitivity)
+        if defaults.object(forKey: SettingsKeys.intensity) != nil {
+            intensity = defaults.double(forKey: SettingsKeys.intensity)
         }
         if defaults.object(forKey: SettingsKeys.deadZone) != nil {
             deadZone = defaults.double(forKey: SettingsKeys.deadZone)
@@ -996,12 +996,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func evaluatePosture(currentY: CGFloat) {
         let smoothedY = smoothNoseY(currentY)
 
+        // How far past the bad posture threshold (positive = slouching)
         let slouchAmount = badPostureY - smoothedY
 
-        let baseThreshold = deadZone * postureRange * sensitivity
+        // Dead zone is an absolute buffer (percentage of posture range)
+        let deadZoneThreshold = deadZone * postureRange
 
-        let enterThreshold = baseThreshold
-        let exitThreshold = baseThreshold * 0.5
+        // Hysteresis: easier to exit slouching state than enter it
+        let enterThreshold = deadZoneThreshold
+        let exitThreshold = deadZoneThreshold * 0.7
 
         let threshold = isCurrentlySlouching ? exitThreshold : enterThreshold
         let isBadPosture = slouchAmount > threshold
@@ -1013,11 +1016,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if consecutiveBadFrames >= frameThreshold {
                 isCurrentlySlouching = true
 
-                let severity = (slouchAmount - enterThreshold) / postureRange
-                let clampedSeverity = min(1.0, max(0.0, severity))
-                let easedSeverity = clampedSeverity * clampedSeverity
+                // Calculate severity: how far past the dead zone (0 to 1)
+                let pastDeadZone = slouchAmount - deadZoneThreshold
+                let remainingRange = max(0.01, postureRange - deadZoneThreshold)
+                let severity = min(1.0, max(0.0, pastDeadZone / remainingRange))
 
-                let blurIntensity = Int32(2 + easedSeverity * 62 * sensitivity)
+                // Intensity controls the curve: higher = blur ramps up faster
+                // pow(severity, 1/intensity): intensity 2.0 = aggressive, 0.5 = gentle
+                let adjustedSeverity = pow(severity, 1.0 / intensity)
+
+                let blurIntensity = Int32(2 + adjustedSeverity * 62)
                 targetBlurRadius = min(64, blurIntensity)
 
                 DispatchQueue.main.async {

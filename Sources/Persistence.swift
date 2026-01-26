@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Settings Storage
 
 class SettingsStorage {
-    var sensitivity: CGFloat = 0.85
+    var intensity: CGFloat = 1.0
     var deadZone: CGFloat = 0.03
     var useCompatibilityMode = false
     var blurWhenAway = false
@@ -13,7 +13,7 @@ class SettingsStorage {
 
     func save() {
         let defaults = UserDefaults.standard
-        defaults.set(sensitivity, forKey: SettingsKeys.sensitivity)
+        defaults.set(intensity, forKey: SettingsKeys.intensity)
         defaults.set(deadZone, forKey: SettingsKeys.deadZone)
         defaults.set(useCompatibilityMode, forKey: SettingsKeys.useCompatibilityMode)
         defaults.set(blurWhenAway, forKey: SettingsKeys.blurWhenAway)
@@ -27,8 +27,8 @@ class SettingsStorage {
     func load() {
         let defaults = UserDefaults.standard
 
-        if defaults.object(forKey: SettingsKeys.sensitivity) != nil {
-            sensitivity = defaults.double(forKey: SettingsKeys.sensitivity)
+        if defaults.object(forKey: SettingsKeys.intensity) != nil {
+            intensity = defaults.double(forKey: SettingsKeys.intensity)
         }
         if defaults.object(forKey: SettingsKeys.deadZone) != nil {
             deadZone = defaults.double(forKey: SettingsKeys.deadZone)

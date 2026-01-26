@@ -96,15 +96,51 @@ struct SettingToggle: View {
     }
 }
 
+// MARK: - GroupBox with Info Icon
+
+struct GroupBoxWithInfo<Content: View>: View {
+    let title: String
+    let helpText: String
+    let content: Content
+    @State private var showingHelp = false
+
+    init(_ title: String, helpText: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.helpText = helpText
+        self.content = content()
+    }
+
+    var body: some View {
+        GroupBox {
+            content
+        } label: {
+            HStack(spacing: 4) {
+                Text(title)
+                Button(action: { showingHelp.toggle() }) {
+                    Image(systemName: "info.circle")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showingHelp, arrowEdge: .trailing) {
+                    Text(helpText)
+                        .padding(10)
+                        .frame(width: 220)
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Settings View
 
 struct SettingsView: View {
     let appDelegate: AppDelegate
 
     // Local state that syncs with AppDelegate
-    @State private var sensitivity: Double = 0.85
+    @State private var intensity: Double = 1.0
     @State private var deadZone: Double = 0.03
-    @State private var sensitivitySlider: Double = 2
+    @State private var intensitySlider: Double = 2
     @State private var deadZoneSlider: Double = 2
     @State private var blurWhenAway: Bool = false
     @State private var showInDock: Bool = false
@@ -113,43 +149,11 @@ struct SettingsView: View {
     @State private var selectedCameraID: String = ""
     @State private var availableCameras: [(id: String, name: String)] = []
 
-    let sensitivityOptions: [(label: String, value: Double, description: String)] = [
-        ("Very Low", 0.4, "Only major slouching"),
-        ("Low", 0.6, "Allows more movement"),
-        ("Medium", 0.85, "Balanced"),
-        ("High", 0.95, "Reacts to small changes"),
-        ("Very High", 1.0, "Maximum response")
-    ]
-
-    let deadZoneOptions: [(label: String, value: Double, description: String)] = [
-        ("Very Small", 0.01, "Activates immediately"),
-        ("Small", 0.02, "Strict enforcement"),
-        ("Medium", 0.03, "Balanced"),
-        ("Large", 0.05, "Allows natural movement"),
-        ("Very Large", 0.08, "Only major slouching")
-    ]
-
-    let sensitivityValues: [Double] = [0.4, 0.6, 0.85, 0.95, 1.0]
-    let sensitivityLabels = ["Very Low", "Low", "Medium", "High", "Very High"]
+    let intensityValues: [Double] = [0.5, 0.75, 1.0, 1.5, 2.0]
+    let intensityLabels = ["Gentle", "Easy", "Medium", "Firm", "Aggressive"]
 
     let deadZoneValues: [Double] = [0.01, 0.02, 0.03, 0.05, 0.08]
-    let deadZoneLabels = ["Very Small", "Small", "Medium", "Large", "Very Large"]
-
-    var sensitivityIndex: Int {
-        sensitivityValues.firstIndex(of: sensitivity) ?? 2
-    }
-
-    var deadZoneIndex: Int {
-        deadZoneValues.firstIndex(of: deadZone) ?? 2
-    }
-
-    var sensitivityLabel: String {
-        sensitivityLabels[sensitivityIndex]
-    }
-
-    var deadZoneLabel: String {
-        deadZoneLabels[deadZoneIndex]
-    }
+    let deadZoneLabels = ["Strict", "Tight", "Medium", "Relaxed", "Loose"]
 
     var body: some View {
         HStack(alignment: .top, spacing: 20) {
@@ -171,32 +175,7 @@ struct SettingsView: View {
                     }
                 }
 
-                GroupBox("Sensitivity") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Slider(value: $sensitivitySlider, in: 0...4, step: 1)
-                            .onChange(of: sensitivitySlider) { newValue in
-                                let index = Int(newValue)
-                                sensitivity = sensitivityValues[index]
-                                appDelegate.sensitivity = sensitivity
-                                appDelegate.saveSettings()
-                            }
-                        HStack {
-                            Text("Low")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Text(sensitivityLabels[Int(sensitivitySlider)])
-                                .font(.caption)
-                                .fontWeight(.medium)
-                            Spacer()
-                            Text("High")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-
-                GroupBox("Dead Zone") {
+                GroupBoxWithInfo("Dead Zone", helpText: "How much you can move before blur starts. A relaxed dead zone allows more natural movement without triggering blur.") {
                     VStack(alignment: .leading, spacing: 8) {
                         Slider(value: $deadZoneSlider, in: 0...4, step: 1)
                             .onChange(of: deadZoneSlider) { newValue in
@@ -206,7 +185,7 @@ struct SettingsView: View {
                                 appDelegate.saveSettings()
                             }
                         HStack {
-                            Text("Small")
+                            Text("Strict")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Spacer()
@@ -214,7 +193,32 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .fontWeight(.medium)
                             Spacer()
-                            Text("Large")
+                            Text("Relaxed")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                GroupBoxWithInfo("Intensity", helpText: "How quickly blur increases as you slouch past the dead zone. Aggressive intensity applies stronger blur sooner.") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Slider(value: $intensitySlider, in: 0...4, step: 1)
+                            .onChange(of: intensitySlider) { newValue in
+                                let index = Int(newValue)
+                                intensity = intensityValues[index]
+                                appDelegate.intensity = intensity
+                                appDelegate.saveSettings()
+                            }
+                        HStack {
+                            Text("Gentle")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text(intensityLabels[Int(intensitySlider)])
+                                .font(.caption)
+                                .fontWeight(.medium)
+                            Spacer()
+                            Text("Aggressive")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -305,7 +309,7 @@ struct SettingsView: View {
     }
 
     private func loadFromAppDelegate() {
-        sensitivity = appDelegate.sensitivity
+        intensity = appDelegate.intensity
         deadZone = appDelegate.deadZone
         blurWhenAway = appDelegate.blurWhenAway
         showInDock = appDelegate.showInDock
@@ -313,7 +317,7 @@ struct SettingsView: View {
         useCompatibilityMode = appDelegate.useCompatibilityMode
 
         // Set slider indices based on loaded values
-        sensitivitySlider = Double(sensitivityValues.firstIndex(of: sensitivity) ?? 2)
+        intensitySlider = Double(intensityValues.firstIndex(of: intensity) ?? 2)
         deadZoneSlider = Double(deadZoneValues.firstIndex(of: deadZone) ?? 2)
 
         // Load cameras
