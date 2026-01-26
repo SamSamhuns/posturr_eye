@@ -53,8 +53,8 @@ After each GitHub release, update the Homebrew tap at https://github.com/tldev/h
 # Get the SHA256 of the new release ZIP
 gh release view vX.Y.Z --repo tldev/posturr --json assets --jq '.assets[] | select(.name | endswith(".zip")) | .digest'
 
-# Clone, update, and push
-cd /tmp && rm -rf homebrew-tap && gh repo clone tldev/homebrew-tap
+# Clone via SSH (required for push), update, and push
+cd /tmp && rm -rf homebrew-tap && git clone git@github.com:tldev/homebrew-tap.git
 cd homebrew-tap
 
 # Edit Casks/posturr.rb - update version and sha256
