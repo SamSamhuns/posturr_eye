@@ -46,3 +46,7 @@ Posturr.iconset/
 *.zip
 *.dmg
 build-appstore/
+
+# IDE files
+.build
+.vscode
