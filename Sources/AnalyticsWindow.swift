@@ -151,10 +151,14 @@ struct AnalyticsView: View {
     func formatDuration(_ seconds: TimeInterval) -> String {
         let h = Int(seconds) / 3600
         let m = (Int(seconds) % 3600) / 60
+        let s = Int(seconds) % 60
+        
         if h > 0 {
             return "\(h)h \(m)m"
+        } else if m > 0 {
+            return "\(m)m \(s)s"
         }
-        return "\(m)m"
+        return "\(s)s"
     }
 }
 
