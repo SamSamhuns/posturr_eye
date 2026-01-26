@@ -112,6 +112,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Hysteresis
     var isCurrentlySlouching = false
 
+    // Blur onset delay
+    var blurOnsetDelay: Double = 0.0
+    var badPostureStartTime: Date?
+
     // Frame throttling
     var lastFrameTime: Date = .distantPast
     let frameInterval: TimeInterval = 0.1
@@ -750,6 +754,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         defaults.set(showInDock, forKey: SettingsKeys.showInDock)
         defaults.set(pauseOnTheGo, forKey: SettingsKeys.pauseOnTheGo)
         defaults.set(warningMode.rawValue, forKey: SettingsKeys.warningMode)
+        defaults.set(blurOnsetDelay, forKey: SettingsKeys.blurOnsetDelay)
         if let colorData = try? NSKeyedArchiver.archivedData(withRootObject: warningColor, requiringSecureCoding: false) {
             defaults.set(colorData, forKey: SettingsKeys.warningColor)
         }
@@ -779,6 +784,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let colorData = defaults.data(forKey: SettingsKeys.warningColor),
            let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData) {
             warningColor = color
+        }
+        if defaults.object(forKey: SettingsKeys.blurOnsetDelay) != nil {
+            blurOnsetDelay = defaults.double(forKey: SettingsKeys.blurOnsetDelay)
         }
     }
 
@@ -1168,6 +1176,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             consecutiveGoodFrames = 0
 
             if consecutiveBadFrames >= frameThreshold {
+                // Start tracking when bad posture began (if not already)
+                if badPostureStartTime == nil {
+                    badPostureStartTime = Date()
+                }
+
+                // Check if we've waited long enough for the blur onset delay
+                let elapsedTime = Date().timeIntervalSince(badPostureStartTime!)
+                guard elapsedTime >= blurOnsetDelay else {
+                    // Still waiting for delay, don't activate blur yet
+                    return
+                }
+
                 isCurrentlySlouching = true
 
                 // Calculate severity: how far past the dead zone (0 to 1)
@@ -1190,6 +1210,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             consecutiveGoodFrames += 1
             consecutiveBadFrames = 0
+
+            // Reset the bad posture start time when posture improves
+            badPostureStartTime = nil
 
             targetBlurRadius = 0
 
