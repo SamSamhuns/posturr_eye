@@ -46,6 +46,22 @@ EOF
 
 The release notes should describe what changed since the previous version, not generic feature lists.
 
+### Acknowledgments
+When implementing features or fixes from GitHub issues, always give credit to the person who suggested it:
+- In the GitHub release notes: "Thanks to @username for suggesting this!"
+- In CHANGELOG.md: Add an `### Acknowledgments` section with a link to their GitHub profile
+- In README.md: Add them to the Contributors section with a brief description of their contribution
+- Comment on the issue thanking them and linking to the release
+
+Note: Issues auto-close when referenced with "Closes #N" in commit messages. If you try to close an issue and it's already closed, just add a thank-you comment instead.
+
+### Update CHANGELOG.md
+After updating the GitHub release notes, also update `CHANGELOG.md` with a new entry:
+- Add the new version section at the top (after the header)
+- Use Keep a Changelog format with `### Added`, `### Changed`, `### Fixed` sections as appropriate
+- Include the release date in YYYY-MM-DD format
+- Commit and push the changelog update
+
 ### Update Homebrew Cask
 After each GitHub release, update the Homebrew tap at https://github.com/tldev/homebrew-tap:
 
@@ -53,8 +69,8 @@ After each GitHub release, update the Homebrew tap at https://github.com/tldev/h
 # Get the SHA256 of the new release ZIP
 gh release view vX.Y.Z --repo tldev/posturr --json assets --jq '.assets[] | select(.name | endswith(".zip")) | .digest'
 
-# Clone, update, and push
-cd /tmp && rm -rf homebrew-tap && gh repo clone tldev/homebrew-tap
+# Clone via SSH (required for push), update, and push
+cd /tmp && rm -rf homebrew-tap && git clone git@github.com:tldev/homebrew-tap.git
 cd homebrew-tap
 
 # Edit Casks/posturr.rb - update version and sha256
@@ -110,13 +126,33 @@ After upload:
 - `./build.sh --appstore` - App Store build without private APIs
 - `./build.sh --release` - Regular build + creates ZIP archive
 
+## Installing During Development
+
+**Always kill the existing process and remove old app before installing:**
+```bash
+pkill -x Posturr; rm -rf /Applications/Posturr.app && cp -r build/Posturr.app /Applications/
+```
+
+This prevents file locking issues and permission errors from code signing.
+
 ## Version Bumping
 
 Update version in `build.sh` (VERSION variable) before releasing.
 
 ## Key Files
 
-- `main.swift` - All application code
+### Source Code (in `Sources/`)
+- `main.swift` - App entry point
+- `AppDelegate.swift` - Main app coordinator, state machine, camera capture, posture detection
+- `Models.swift` - Shared types (SettingsKeys, ProfileData, PauseReason, AppState)
+- `Persistence.swift` - SettingsStorage and ProfileStorage classes
+- `DisplayManager.swift` - Display UUID detection and configuration change handling
+- `MenuBar.swift` - MenuBarManager for status bar setup
+- `SettingsWindow.swift` - SwiftUI settings window with SettingsWindowController
+- `CalibrationWindow.swift` - Calibration UI with pulsing ring animation
+- `BlurOverlay.swift` - Private API loading and BlurOverlayManager
+
+### Build & Release
 - `build.sh` - Build script with App Store support
 - `release.sh` - Full GitHub release automation
 - `PRIVACY.md` - Privacy policy for App Store

@@ -4,6 +4,21 @@
 
 Posturr uses your Mac's camera and Apple's Vision framework to monitor your posture in real-time. When it detects that you're slouching, it progressively blurs your screen to remind you to sit up straight. Maintain good posture, and the blur clears instantly.
 
+[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/8VzX39fZ)
+
+**Join our Discord** to share feedback, get help, suggest features, and connect with other Posturr users!
+
+## Screenshots
+
+<p align="center">
+  <img src="assets/posturr_menubar.jpg" width="280" alt="Menu Bar">
+  <img src="assets/posturr_settings.jpg" width="400" alt="Settings">
+</p>
+
+<p align="center">
+  <img src="assets/posturr_analytics.jpg" width="500" alt="Analytics Dashboard">
+</p>
+
 ## Features
 
 - **Real-time posture detection** - Uses Apple's Vision framework for body pose and face tracking
@@ -12,6 +27,7 @@ Posturr uses your Mac's camera and Apple's Vision framework to monitor your post
 - **Multi-display support** - Works across all connected monitors
 - **Privacy-focused** - All processing happens locally on your Mac
 - **Lightweight** - Runs as a background app with minimal resource usage
+- **Optional Dock visibility** - Show in Dock and Cmd+Tab app switcher when preferred
 - **No account required** - No signup, no cloud, no tracking
 
 ## Installation
@@ -48,10 +64,19 @@ Click the menu bar icon to access:
 - **Status** - Shows current state (Monitoring, Slouching, Good Posture, etc.)
 - **Enabled** - Toggle posture monitoring on/off
 - **Recalibrate** - Reset your baseline posture (sit up straight, then click)
-- **Sensitivity** - Adjust how sensitive the slouch detection is (Low, Medium, High, Very High)
-- **Dead Zone** - Set the tolerance before blur kicks in (None, Small, Medium, Large)
-- **Compatibility Mode** - Use public macOS APIs for blur (try this if blur doesn't appear)
-- **Quit** - Exit the application (or press **Escape** anywhere)
+- **Settings** - Open the settings window to configure all options
+- **Quit** - Exit the application
+
+### Settings Window
+
+The Settings window (accessible from the menu bar) provides:
+
+- **Sensitivity** - Adjust how sensitive the slouch detection is (5 levels from Low to Very High)
+- **Dead Zone** - Set the tolerance before blur kicks in (5 levels from None to Very Large)
+- **Blur when away** - Blur screen when you step away from camera
+- **Show in dock** - Show app in Dock and Cmd+Tab app switcher
+- **Pause on the go** - Auto-pause when laptop display becomes the only screen
+- **Compatibility mode** - Use public macOS APIs for blur (try this if blur doesn't appear)
 
 ### Tips for Best Results
 
@@ -81,7 +106,7 @@ The screen blur uses macOS's private CoreGraphics API by default for efficient, 
 ### Build
 
 ```bash
-git clone https://github.com/yourusername/posturr.git
+git clone https://github.com/tldev/posturr.git
 cd posturr
 ./build.sh
 ```
@@ -107,7 +132,7 @@ swiftc -O \
     -framework Vision \
     -framework CoreImage \
     -o Posturr \
-    main.swift
+    Sources/*.swift
 ```
 
 ## Known Limitations
@@ -141,6 +166,25 @@ Posturr processes all video data locally on your Mac. No images or data are ever
 
 MIT License - see [LICENSE](LICENSE) for details.
 
+## Project Structure
+
+```
+posturr/
+├── Sources/
+│   ├── main.swift              # App entry point
+│   ├── AppDelegate.swift       # Main app coordinator and state machine
+│   ├── Models.swift            # Shared types (settings keys, profile data, app state)
+│   ├── Persistence.swift       # Settings and profile storage
+│   ├── DisplayManager.swift    # Display detection and configuration
+│   ├── MenuBar.swift           # Menu bar setup and management
+│   ├── SettingsWindow.swift    # SwiftUI settings window
+│   ├── CalibrationWindow.swift # Calibration UI
+│   └── BlurOverlay.swift       # Screen blur overlay management
+├── build.sh                    # Build script
+├── release.sh                  # Release automation
+└── AppIcon.icns                # App icon
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues and pull requests.
@@ -154,5 +198,8 @@ Contributions are welcome! Please feel free to submit issues and pull requests.
 ### Contributors
 
 - [@wklm](https://github.com/wklm) - Compatibility mode implementation
-- [@cam-br0wn](https://github.com/cam-br0wn) - Architecture-agnostic build improvements
+- [@cam-br0wn](https://github.com/cam-br0wn) - Dock/App Switcher visibility toggle
 - [@einsteinx2](https://github.com/einsteinx2) - SwiftPM/Xcode support
+- [@ssisk](https://github.com/ssisk) - Screen lock pause feature suggestion
+- [@gcanyon](https://github.com/gcanyon) - Warning onset delay feature suggestion
+- [@javabudd](https://github.com/javabudd) - Analytics dashboard
