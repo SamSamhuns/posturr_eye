@@ -112,6 +112,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // Hysteresis
     var isCurrentlySlouching = false
+    var isCurrentlyAway = false
 
     // Blur onset delay
     var warningOnsetDelay: Double = 0.0
@@ -1023,14 +1024,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func updateBlur() {
-        // Update warning overlay if not in blur mode
-        if warningMode != .blur {
+        // "Blur when away" always uses actual blur for privacy, regardless of warning style
+        let useBlurForPrivacy = isCurrentlyAway
+
+        // Update warning overlay if not in blur mode (and not away)
+        if warningMode != .blur && !useBlurForPrivacy {
             warningOverlayManager.targetIntensity = CGFloat(targetBlurRadius) / 64.0
             warningOverlayManager.updateWarning()
             return
         }
 
-        // Original blur logic
+        // Clear warning overlay when using blur (either blur mode or away for privacy)
+        if warningMode != .blur && useBlurForPrivacy {
+            warningOverlayManager.targetIntensity = 0
+            warningOverlayManager.updateWarning()
+        }
+
+        // Blur logic (used for blur warning mode OR when away for privacy)
         if currentBlurRadius < targetBlurRadius {
             currentBlurRadius = min(currentBlurRadius + 1, targetBlurRadius)
         } else if currentBlurRadius > targetBlurRadius {
@@ -1089,6 +1099,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         consecutiveNoDetectionFrames = 0
+        isCurrentlyAway = false
 
         let noseY = nose.location.y
         currentNoseY = noseY
@@ -1128,6 +1139,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if consecutiveNoDetectionFrames >= awayFrameThreshold {
+            isCurrentlyAway = true
             targetBlurRadius = 64
 
             DispatchQueue.main.async {
@@ -1139,6 +1151,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func analyzeFace(_ face: VNFaceObservation) {
         consecutiveNoDetectionFrames = 0
+        isCurrentlyAway = false
 
         let faceY = face.boundingBox.midY
         currentNoseY = faceY
