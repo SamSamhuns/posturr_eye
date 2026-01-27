@@ -1189,10 +1189,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             consecutiveGoodFrames = 0
 
             if consecutiveBadFrames >= frameThreshold {
-                if !isCurrentlySlouching {
-                    AnalyticsManager.shared.recordSlouchEvent()
-                }
-
                 // Start tracking when bad posture began (if not already)
                 if badPostureStartTime == nil {
                     badPostureStartTime = Date()
@@ -1203,6 +1199,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 guard elapsedTime >= warningOnsetDelay else {
                     // Still waiting for delay, don't activate blur yet
                     return
+                }
+
+                // Record slouch event only once when transitioning to slouching state
+                if !isCurrentlySlouching {
+                    AnalyticsManager.shared.recordSlouchEvent()
                 }
 
                 isCurrentlySlouching = true
