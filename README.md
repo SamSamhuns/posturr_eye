@@ -4,6 +4,7 @@
 
 Posturr uses your Mac's camera and Apple's Vision framework to monitor your posture in real-time. When it detects that you're slouching, it progressively blurs your screen to remind you to sit up straight. Maintain good posture, and the blur clears instantly.
 
+[![Download Latest Release](https://img.shields.io/github/v/release/tldev/posturr?style=for-the-badge&logo=apple&label=Download&color=007AFF)](https://github.com/tldev/posturr/releases/latest)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/8VzX39fZ)
 
 **Join our Discord** to share feedback, get help, suggest features, and connect with other Posturr users!
@@ -195,6 +196,10 @@ Contributions are welcome! Please feel free to submit issues and pull requests.
 - Uses private CoreGraphics API for blur, with NSVisualEffectView fallback
 - Inspired by the need for better posture during long coding sessions
 
+## Linux version
+
+Want this on Linux? See [postured](https://github.com/vadi2/postured).
+
 ### Contributors
 
 - [@wklm](https://github.com/wklm) - Compatibility mode implementation
@@ -203,3 +208,4 @@ Contributions are welcome! Please feel free to submit issues and pull requests.
 - [@ssisk](https://github.com/ssisk) - Screen lock pause feature suggestion
 - [@gcanyon](https://github.com/gcanyon) - Warning onset delay feature suggestion
 - [@javabudd](https://github.com/javabudd) - Analytics dashboard
+- [@danielroek](https://github.com/danielroek) - "None" warning style option

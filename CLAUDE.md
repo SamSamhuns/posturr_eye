@@ -44,7 +44,12 @@ EOF
 )"
 ```
 
-The release notes should describe what changed since the previous version, not generic feature lists.
+**Writing good release notes:**
+- Keep it simple and user-focused - describe the benefit, not the implementation
+- Avoid technical jargon (e.g., "brandCyan color" → "consistent styling")
+- Don't repeat commit messages verbatim - synthesize changes into what users care about
+- One clear sentence is better than a list of technical details
+- Example: "Consistent styling across Settings and Analytics windows" instead of "Redesigned analytics window with brand-consistent styling, replaced shadows with borders, updated color scheme"
 
 ### Acknowledgments
 When implementing features or fixes from GitHub issues, always give credit to the person who suggested it:
@@ -135,6 +140,15 @@ pkill -x Posturr; rm -rf /Applications/Posturr.app && cp -r build/Posturr.app /A
 
 This prevents file locking issues and permission errors from code signing.
 
+## Workflow for Bug Fixes and Features
+
+**IMPORTANT: Never commit or push until the user explicitly asks you to.** After making changes:
+1. Build and install the app
+2. Wait for the user to test
+3. Only commit when the user confirms it works or explicitly asks to commit
+
+**Never comment on GitHub issues** until the user explicitly asks you to. The user will handle acknowledgments and issue comments.
+
 ## Version Bumping
 
 Update version in `build.sh` (VERSION variable) before releasing.
@@ -156,3 +170,71 @@ Update version in `build.sh` (VERSION variable) before releasing.
 - `build.sh` - Build script with App Store support
 - `release.sh` - Full GitHub release automation
 - `PRIVACY.md` - Privacy policy for App Store
+
+## UI/UX Branding Guidelines
+
+### Brand Colors
+```swift
+extension Color {
+    static let brandCyan = Color(red: 0.31, green: 0.82, blue: 0.77)  // #4fd1c5 - from app icon
+    static let brandNavy = Color(red: 0.10, green: 0.15, blue: 0.27)  // #1a2744 - from app icon
+}
+```
+
+### Design Principles
+- **Brand connection**: Use `brandCyan` for accents (sliders, toggles, selected states, buttons)
+- **No system blue**: Replace default macOS blue with brand cyan
+- **Subtle, not loud**: Use `.opacity(0.1)` to `.opacity(0.3)` for backgrounds/borders
+
+### Window Layout
+- Use `sizeThatFits` for auto-sizing windows to content
+- Fixed width with auto height: `.frame(width: 640).fixedSize(horizontal: false, vertical: true)`
+- Standard padding: `.padding(24)`
+
+### Section Cards (SectionCard component)
+- Rounded containers: `cornerRadius: 10`
+- Background: `Color(NSColor.controlBackgroundColor)`
+- Subtle border: `Color.primary.opacity(0.06)`
+- Section header: Icon (brandCyan) + title (12pt semibold)
+- Internal spacing: 12-14pt between items
+
+### Typography
+- Window title: 22pt semibold
+- Section headers: 12pt semibold with SF Symbol icon
+- Labels: 13pt regular
+- Help text: 12pt in popovers
+- Slider labels: 10-11pt secondary color
+
+### Controls
+- **Segmented pickers**: Custom `WarningStylePicker` with brandCyan selected state
+- **Toggles**: `.tint(.brandCyan)`
+- **Sliders**: `.tint(.brandCyan)` with value badge (pill with cyan background at 12% opacity)
+- **Buttons**: brandCyan text/icon with 10% cyan background, 30% cyan border
+- **Help icons**: `questionmark.circle` at 11pt, secondary color at 60% opacity
+
+### Value Badges (for sliders)
+```swift
+Text(value)
+    .font(.system(size: 12, weight: .medium))
+    .foregroundColor(.brandCyan)
+    .padding(.horizontal, 10)
+    .padding(.vertical, 3)
+    .background(Capsule().fill(Color.brandCyan.opacity(0.12)))
+```
+
+### Dividers
+Use `SubtleDivider`: `Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)`
+
+### Header Pattern
+- App icon (52x52 with subtle shadow)
+- App name (22pt semibold) + tagline (12pt secondary)
+- Social links (GitHub/Discord icons, 16x16, secondary color at 70% opacity)
+- Version badge (11pt medium in capsule with 5% primary background)
+
+### Social Icons
+- Use official SVG paths from Simple Icons (GitHubIcon, DiscordIcon structs in SettingsWindow.swift)
+- Add `.onHover` with `NSCursor.pointingHand` for pointer cursor
+- Wrap in Link with `.contentShape(Rectangle())` for larger hit area
+
+### Reference Implementation
+See `SettingsWindow.swift` for the complete branded implementation.

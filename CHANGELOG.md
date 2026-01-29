@@ -5,6 +5,35 @@ All notable changes to Posturr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.3] - 2026-01-27
+
+### Changed
+- Consistent styling across Settings and Analytics windows
+
+## [1.4.2] - 2025-01-27
+
+### Added
+- "None" warning style - disable visual warnings while keeping posture detection and statistics active
+
+### Fixed
+- "Blur when away" privacy feature now works correctly when warning style is set to None
+
+### Acknowledgments
+- Thanks to [@danielroek](https://github.com/danielroek) for suggesting and implementing this feature!
+
+## [1.4.1] - 2026-01-27
+
+### Fixed
+- Slouch event over-counting when warning delay is enabled - statistics now correctly record one event per slouch
+- "Blur when away" now always uses actual blur for privacy, regardless of warning style (Border/Vignette)
+
+### Changed
+- Refactored warning system to cleanly separate privacy blur from posture warnings
+
+### Acknowledgments
+- Thanks to [@4elovel](https://github.com/4elovel) for reporting the statistics over-counting issue!
+- Thanks to [@slaiyer](https://github.com/slaiyer) for reporting the blur-when-away behavior!
+
 ## [1.4.0] - 2026-01-26
 
 ### Added

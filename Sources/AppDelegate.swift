@@ -112,6 +112,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // Hysteresis
     var isCurrentlySlouching = false
+    var isCurrentlyAway = false
+
+    // Separate intensities for different concerns (0.0 to 1.0)
+    var postureWarningIntensity: CGFloat = 0  // Posture-based warning
+    // Privacy blur is derived from isCurrentlyAway (always full blur when away)
 
     // Blur onset delay
     var warningOnsetDelay: Double = 0.0
@@ -241,7 +246,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         setupMenuBar()
         setupOverlayWindows()
-        if warningMode != .blur {
+        if warningMode.usesWarningOverlay {
             warningOverlayManager.mode = warningMode
             warningOverlayManager.warningColor = warningColor
             warningOverlayManager.setupOverlayWindows()
@@ -376,28 +381,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         setupCamera()
 
+        // Note: We intentionally don't check pauseOnTheGo at startup.
+        // "Pause on the go" should only trigger when display config *changes*
+        // to laptop-only (e.g., unplugging external monitor), not at app launch.
+
         let configKey = getCurrentConfigKey()
         if let profile = loadProfile(forKey: configKey) {
             let cameras = getAvailableCameras()
             if cameras.contains(where: { $0.uniqueID == profile.cameraID }) {
                 selectedCameraID = profile.cameraID
                 applyProfile(profile)
-
-                if pauseOnTheGo && isLaptopOnlyConfiguration() {
-                    state = .paused(.onTheGo)
-                } else {
-                    state = .monitoring
-                }
+                state = .monitoring
                 return
             } else {
                 state = .paused(.cameraDisconnected)
                 return
             }
-        }
-
-        if pauseOnTheGo && isLaptopOnlyConfiguration() {
-            state = .paused(.onTheGo)
-            return
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
@@ -966,7 +965,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         blurViews.removeAll()
         setupOverlayWindows()
 
-        if warningMode != .blur {
+        if warningMode.usesWarningOverlay {
             warningOverlayManager.rebuildOverlayWindows()
         }
     }
@@ -1016,7 +1015,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Set new mode and rebuild if needed
         warningMode = newMode
-        if warningMode != .blur {
+        if warningMode.usesWarningOverlay {
             warningOverlayManager.mode = warningMode
             warningOverlayManager.warningColor = warningColor
             warningOverlayManager.setupOverlayWindows()
@@ -1029,14 +1028,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func updateBlur() {
-        // Update warning overlay if not in blur mode
-        if warningMode != .blur {
-            warningOverlayManager.targetIntensity = CGFloat(targetBlurRadius) / 64.0
-            warningOverlayManager.updateWarning()
-            return
-        }
+        // Two independent concerns:
+        // 1. Privacy blur: full blur when away (always uses blur overlay)
+        // 2. Posture warning: user's chosen style (blur/vignette/border/none)
 
-        // Original blur logic
+        let privacyBlurIntensity: CGFloat = isCurrentlyAway ? 1.0 : 0.0
+
+        // Compute target blur radius and warning overlay intensity based on mode
+        switch warningMode {
+        case .blur:
+            // Both privacy and posture use blur - take the higher value
+            let combinedIntensity = max(privacyBlurIntensity, postureWarningIntensity)
+            targetBlurRadius = Int32(combinedIntensity * 64)
+            warningOverlayManager.targetIntensity = 0
+        case .none:
+            // Only privacy blur, no posture warning visual
+            targetBlurRadius = Int32(privacyBlurIntensity * 64)
+            warningOverlayManager.targetIntensity = 0
+        case .vignette, .border:
+            // Privacy uses blur, posture uses vignette/border overlay
+            targetBlurRadius = Int32(privacyBlurIntensity * 64)
+            warningOverlayManager.targetIntensity = postureWarningIntensity
+        }
+        warningOverlayManager.updateWarning()
+
+        // Animate blur toward target
         if currentBlurRadius < targetBlurRadius {
             currentBlurRadius = min(currentBlurRadius + 1, targetBlurRadius)
         } else if currentBlurRadius > targetBlurRadius {
@@ -1095,6 +1111,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         consecutiveNoDetectionFrames = 0
+        isCurrentlyAway = false
 
         let noseY = nose.location.y
         currentNoseY = noseY
@@ -1133,8 +1150,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        if consecutiveNoDetectionFrames >= awayFrameThreshold {
-            targetBlurRadius = 64
+        if consecutiveNoDetectionFrames >= awayFrameThreshold && !isCurrentlyAway {
+            isCurrentlyAway = true
 
             DispatchQueue.main.async {
                 self.statusMenuItem.title = "Status: Away"
@@ -1145,6 +1162,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func analyzeFace(_ face: VNFaceObservation) {
         consecutiveNoDetectionFrames = 0
+        isCurrentlyAway = false
 
         let faceY = face.boundingBox.midY
         currentNoseY = faceY
@@ -1195,10 +1213,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             consecutiveGoodFrames = 0
 
             if consecutiveBadFrames >= frameThreshold {
-                if !isCurrentlySlouching {
-                    AnalyticsManager.shared.recordSlouchEvent()
-                }
-
                 // Start tracking when bad posture began (if not already)
                 if badPostureStartTime == nil {
                     badPostureStartTime = Date()
@@ -1211,6 +1225,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
 
+                // Record slouch event only once when transitioning to slouching state
+                if !isCurrentlySlouching {
+                    AnalyticsManager.shared.recordSlouchEvent()
+                }
+
                 isCurrentlySlouching = true
 
                 // Calculate severity: how far past the dead zone (0 to 1)
@@ -1218,12 +1237,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let remainingRange = max(0.01, postureRange - deadZoneThreshold)
                 let severity = min(1.0, max(0.0, pastDeadZone / remainingRange))
 
-                // Intensity controls the curve: higher = blur ramps up faster
+                // Intensity controls the curve: higher = warning ramps up faster
                 // pow(severity, 1/intensity): intensity 2.0 = aggressive, 0.5 = gentle
                 let adjustedSeverity = pow(severity, 1.0 / intensity)
 
-                let blurIntensity = Int32(adjustedSeverity * 64)
-                targetBlurRadius = min(64, blurIntensity)
+                postureWarningIntensity = adjustedSeverity
 
                 DispatchQueue.main.async {
                     self.statusMenuItem.title = "Status: Slouching"
@@ -1237,7 +1255,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Reset the bad posture start time when posture improves
             badPostureStartTime = nil
 
-            targetBlurRadius = 0
+            postureWarningIntensity = 0
 
             if consecutiveGoodFrames >= frameThreshold {
                 isCurrentlySlouching = false
