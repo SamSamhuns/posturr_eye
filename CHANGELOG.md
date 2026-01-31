@@ -5,6 +5,22 @@ All notable changes to Posturr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-01-31
+
+### Added
+- AirPods motion tracking as an alternative to camera-based posture detection
+  - Uses head motion sensors in AirPods Pro, Max, or 3rd generation+
+  - Requires macOS 14.0 (Sonoma) or later
+  - Automatically pauses when AirPods are removed from ears
+- New onboarding flow to choose between Camera and AirPods tracking
+- Switch tracking methods anytime from Settings without losing calibration data
+
+### Fixed
+- Leaning head backward no longer incorrectly triggers poor posture warning
+
+### Acknowledgments
+- Thanks to [@kimik-hyum](https://github.com/kimik-hyum) for contributing AirPods motion tracking!
+
 ## [1.4.8] - 2026-01-30
 
 ### Added
