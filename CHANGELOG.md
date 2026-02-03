@@ -5,6 +5,105 @@ All notable changes to Posturr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.4] - 2026-02-02
+
+### Fixed
+- Settings window being cut off on first open
+- Cmd+W now properly closes Settings and Analytics windows
+
+### Changed
+- More compact Settings UI that fits better on smaller screens
+
+## [1.5.3] - 2026-02-01
+
+### Fixed
+- Menu bar icon flickering between states during posture monitoring
+
+### Changed
+- Major code refactoring for improved testability and maintainability
+- Added 44 unit tests covering core posture detection logic
+
+## [1.5.2] - 2026-01-31
+
+### Added
+- Custom menu bar icons - seated figure icons that better represent posture states (good, bad, away, paused, calibrating)
+
+### Changed
+- Renamed "Statistics" to "Analytics" in menu
+- Renamed "Enabled" to "Enable" with standard macOS shortcut display
+- Disabled state now shows the paused icon for consistency
+
+## [1.5.1] - 2026-01-31
+
+### Added
+- Forward-head posture detection (turtle neck) - tracks face size to detect when you move your head closer to the screen
+
+### Acknowledgments
+- Thanks to [@kimik-hyum](https://github.com/kimik-hyum) for implementing this feature!
+
+## [1.5.0] - 2026-01-31
+
+### Added
+- AirPods motion tracking as an alternative to camera-based posture detection
+  - Uses head motion sensors in AirPods Pro, Max, or 3rd generation+
+  - Requires macOS 14.0 (Sonoma) or later
+  - Automatically pauses when AirPods are removed from ears
+- New onboarding flow to choose between Camera and AirPods tracking
+- Switch tracking methods anytime from Settings without losing calibration data
+
+### Fixed
+- Leaning head backward no longer incorrectly triggers poor posture warning
+
+### Acknowledgments
+- Thanks to [@kimik-hyum](https://github.com/kimik-hyum) for contributing AirPods motion tracking!
+
+## [1.4.8] - 2026-01-30
+
+### Added
+- Solid color warning style - fills the entire screen with a solid color overlay for a more aggressive visual cue
+
+### Acknowledgments
+- Thanks to [@karlmolina](https://github.com/karlmolina) for contributing this feature!
+
+## [1.4.7] - 2026-01-29
+
+### Added
+- Detection mode slider to balance responsiveness vs battery life
+  - **Responsive**: 10 fps (~14% CPU)
+  - **Balanced**: 4 fps (~8% CPU) - new default
+  - **Performance**: 2 fps (~7% CPU)
+- Smart recovery: automatically boosts to 10 fps when slouching for instant feedback
+
+### Changed
+- All modes use optimized low resolution (352x288) for CPU efficiency
+- Camera hardware frame rate is now configured directly (not just software throttling)
+
+### Acknowledgments
+- Thanks to [@cam-br0wn](https://github.com/cam-br0wn) for the original idea in [PR #24](https://github.com/tldev/posturr/pull/24)!
+
+## [1.4.6] - 2026-01-29
+
+### Fixed
+- Pause-on-the-go no longer triggers incorrectly when using the keyboard shortcut to re-enable posture monitoring
+
+## [1.4.5] - 2026-01-29
+
+### Added
+- Global keyboard shortcut to toggle Posturr on/off from anywhere (default: ⌃⌥P)
+- Shortcut is fully customizable in Settings → Behavior
+- Uses Carbon API - no Accessibility permission required
+
+### Acknowledgments
+- Thanks to [@gcanyon](https://github.com/gcanyon) for suggesting this feature!
+
+## [1.4.4] - 2026-01-29
+
+### Fixed
+- Blur now clears when disabling Posturr while the screen is blurred
+
+### Acknowledgments
+- Thanks to [@omyno](https://github.com/omyno) for reporting this issue!
+
 ## [1.4.3] - 2026-01-27
 
 ### Changed

@@ -36,8 +36,8 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
         let settingsView = SettingsView(appDelegate: appDelegate)
         let hostingController = NSHostingController(rootView: settingsView)
 
-        // Let the content determine the window size
-        let fittingSize = hostingController.sizeThatFits(in: CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
+        // Calculate actual content size from SwiftUI view
+        let fittingSize = hostingController.sizeThatFits(in: CGSize(width: 640, height: CGFloat.greatestFiniteMagnitude))
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: fittingSize.width, height: fittingSize.height),
@@ -99,26 +99,26 @@ struct SectionCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.brandCyan)
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.primary)
             }
 
             content
         }
-        .padding(16)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color(NSColor.controlBackgroundColor))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
     }
@@ -134,7 +134,7 @@ struct SettingRow: View {
     var body: some View {
         HStack {
             Text(title)
-                .font(.system(size: 13))
+                .font(.system(size: 12))
 
             HelpButton(text: helpText)
 
@@ -143,6 +143,10 @@ struct SettingRow: View {
             Toggle("", isOn: $isOn)
                 .toggleStyle(.switch)
                 .tint(.brandCyan)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isOn.toggle()
         }
     }
 }
@@ -171,20 +175,20 @@ struct LabeledSlider: View {
     @State private var showingHelp = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
                 Text(title)
-                    .font(.system(size: 13))
+                    .font(.system(size: 12))
 
                 HelpButton(text: helpText)
 
                 Spacer()
 
                 Text(valueLabel)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.brandCyan)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 3)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
                     .background(
                         Capsule()
                             .fill(Color.brandCyan.opacity(0.12))
@@ -196,11 +200,11 @@ struct LabeledSlider: View {
 
             HStack {
                 Text(leftLabel)
-                    .font(.system(size: 10))
+                    .font(.system(size: 9))
                     .foregroundColor(.secondary.opacity(0.7))
                 Spacer()
                 Text(rightLabel)
-                    .font(.system(size: 10))
+                    .font(.system(size: 9))
                     .foregroundColor(.secondary.opacity(0.7))
             }
         }
@@ -214,7 +218,7 @@ struct WarningStylePicker: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach([WarningMode.blur, .vignette, .border, .none], id: \.self) { mode in
+            ForEach([WarningMode.blur, .vignette, .border, .solid, .none], id: \.self) { mode in
                 Button(action: { selection = mode }) {
                     Text(mode.displayName)
                         .font(.system(size: 11, weight: selection == mode ? .semibold : .regular))
@@ -226,6 +230,7 @@ struct WarningStylePicker: View {
                             RoundedRectangle(cornerRadius: 5, style: .continuous)
                                 .fill(selection == mode ? Color.brandCyan : Color.clear)
                         )
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -244,8 +249,52 @@ extension WarningMode {
         case .blur: return "Blur"
         case .vignette: return "Vignette"
         case .border: return "Border"
+        case .solid: return "Solid"
         case .none: return "None"
         }
+    }
+}
+
+// MARK: - Tracking Source Picker
+
+struct TrackingSourcePicker: View {
+    @Binding var selection: TrackingSource
+    let airPodsAvailable: Bool
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(TrackingSource.allCases) { source in
+                let isDisabled = source == .airpods && !airPodsAvailable
+                Button(action: {
+                    if !isDisabled {
+                        selection = source
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: source.icon)
+                            .font(.system(size: 10))
+                        Text(source.displayName)
+                            .font(.system(size: 11, weight: selection == source ? .semibold : .regular))
+                    }
+                    .foregroundColor(selection == source ? .white : (isDisabled ? .secondary.opacity(0.5) : .primary))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .padding(.horizontal, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(selection == source ? Color.brandCyan : Color.clear)
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isDisabled)
+            }
+        }
+        .padding(2)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.primary.opacity(0.06))
+        )
     }
 }
 
@@ -254,21 +303,28 @@ extension WarningMode {
 struct SettingsView: View {
     let appDelegate: AppDelegate
 
-    // Local state that syncs with AppDelegate
-    @State private var intensity: Double = 1.0
-    @State private var deadZone: Double = 0.03
-    @State private var intensitySlider: Double = 2
-    @State private var deadZoneSlider: Double = 2
-    @State private var blurWhenAway: Bool = false
-    @State private var showInDock: Bool = false
-    @State private var pauseOnTheGo: Bool = false
-    @State private var useCompatibilityMode: Bool = false
-    @State private var selectedCameraID: String = ""
-    @State private var availableCameras: [(id: String, name: String)] = []
-    @State private var warningMode: WarningMode = .blur
-    @State private var warningColor: Color = Color(WarningDefaults.color)
-    @State private var warningOnsetDelay: Double = 0.0
-    @State private var launchAtLogin: Bool = false
+    // Local state that syncs with AppDelegate - initialized from appDelegate in init()
+    @State private var intensity: Double
+    @State private var deadZone: Double
+    @State private var intensitySlider: Double
+    @State private var deadZoneSlider: Double
+    @State private var blurWhenAway: Bool
+    @State private var showInDock: Bool
+    @State private var pauseOnTheGo: Bool
+    @State private var useCompatibilityMode: Bool
+    @State private var selectedCameraID: String
+    @State private var availableCameras: [(id: String, name: String)]
+    @State private var warningMode: WarningMode
+    @State private var warningColor: Color
+    @State private var warningOnsetDelay: Double
+    @State private var launchAtLogin: Bool
+    @State private var toggleShortcutEnabled: Bool
+    @State private var toggleShortcut: KeyboardShortcut
+    @State private var detectionModeSlider: Double
+    @State private var trackingSource: TrackingSource
+    @State private var airPodsAvailable: Bool
+
+    let detectionModes: [DetectionMode] = [.responsive, .balanced, .performance]
 
     let intensityValues: [Double] = [0.08, 0.15, 0.35, 0.65, 1.2]
     let intensityLabels = ["Gentle", "Easy", "Medium", "Firm", "Aggressive"]
@@ -276,21 +332,49 @@ struct SettingsView: View {
     let deadZoneValues: [Double] = [0.0, 0.08, 0.15, 0.25, 0.40]
     let deadZoneLabels = ["Strict", "Tight", "Medium", "Relaxed", "Loose"]
 
+    init(appDelegate: AppDelegate) {
+        self.appDelegate = appDelegate
+
+        // Initialize all state from appDelegate synchronously to ensure correct sizing
+        let cameras = appDelegate.cameraDetector.getAvailableCameras()
+        let cameraList = cameras.map { (id: $0.uniqueID, name: $0.localizedName) }
+
+        _intensity = State(initialValue: appDelegate.intensity)
+        _deadZone = State(initialValue: appDelegate.deadZone)
+        _intensitySlider = State(initialValue: Double(intensityValues.firstIndex(of: appDelegate.intensity) ?? 2))
+        _deadZoneSlider = State(initialValue: Double(deadZoneValues.firstIndex(of: appDelegate.deadZone) ?? 2))
+        _blurWhenAway = State(initialValue: appDelegate.blurWhenAway)
+        _showInDock = State(initialValue: appDelegate.showInDock)
+        _pauseOnTheGo = State(initialValue: appDelegate.pauseOnTheGo)
+        _useCompatibilityMode = State(initialValue: appDelegate.useCompatibilityMode)
+        _selectedCameraID = State(initialValue: appDelegate.selectedCameraID ?? cameras.first?.uniqueID ?? "")
+        _availableCameras = State(initialValue: cameraList)
+        _warningMode = State(initialValue: appDelegate.warningMode)
+        _warningColor = State(initialValue: Color(appDelegate.warningColor))
+        _warningOnsetDelay = State(initialValue: appDelegate.warningOnsetDelay)
+        _launchAtLogin = State(initialValue: SMAppService.mainApp.status == .enabled)
+        _toggleShortcutEnabled = State(initialValue: appDelegate.toggleShortcutEnabled)
+        _toggleShortcut = State(initialValue: appDelegate.toggleShortcut)
+        _detectionModeSlider = State(initialValue: Double(detectionModes.firstIndex(of: appDelegate.detectionMode) ?? 0))
+        _trackingSource = State(initialValue: appDelegate.trackingSource)
+        _airPodsAvailable = State(initialValue: appDelegate.airPodsDetector.isAvailable)
+    }
+
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 12) {
                 // Header
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     if let appIcon = NSImage(named: NSImage.applicationIconName) {
                         Image(nsImage: appIcon)
                             .resizable()
-                            .frame(width: 52, height: 52)
-                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 2)
+                            .frame(width: 44, height: 44)
+                            .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 2)
                     }
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text("Posturr")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(.system(size: 20, weight: .semibold))
                         Text("Gentle posture reminders")
-                            .font(.system(size: 12))
+                            .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }
                     Spacer()
@@ -309,7 +393,7 @@ struct SettingsView: View {
                         }
                         .help("View on GitHub")
 
-                        Link(destination: URL(string: "https://discord.gg/posturr")!) {
+                        Link(destination: URL(string: "https://discord.gg/6Ufy2SnXDW")!) {
                             DiscordIcon(color: Color.secondary.opacity(0.7))
                                 .frame(width: 16, height: 16)
                                 .padding(4)
@@ -325,46 +409,97 @@ struct SettingsView: View {
                     // Version badge
                     if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
                         Text("v\(version)")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
                             .background(
                                 Capsule()
                                     .fill(Color.primary.opacity(0.05))
                             )
                     }
                 }
-                .padding(.bottom, 8)
+                .padding(.bottom, 4)
 
                 // Two column layout
-                HStack(alignment: .top, spacing: 16) {
+                HStack(alignment: .top, spacing: 12) {
                     // Left column - Detection
-                    VStack(spacing: 12) {
-                        SectionCard("Camera", icon: "camera") {
-                            Picker("", selection: $selectedCameraID) {
-                                ForEach(availableCameras, id: \.id) { camera in
-                                    Text(camera.name).tag(camera.id)
+                    VStack(spacing: 8) {
+                        SectionCard("Tracking", icon: "figure.stand") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                // Tracking method picker
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(spacing: 4) {
+                                        Text("Method")
+                                            .font(.system(size: 12))
+                                        HelpButton(text: "Camera uses your webcam to track head position. AirPods uses motion sensors in compatible AirPods (Pro, Max, or 3rd gen) to detect head tilt.")
+                                    }
+
+                                    TrackingSourcePicker(
+                                        selection: $trackingSource,
+                                        airPodsAvailable: airPodsAvailable
+                                    )
+                                    .onChange(of: trackingSource) { newValue in
+                                        if newValue != appDelegate.trackingSource {
+                                            appDelegate.switchTrackingSource(to: newValue)
+                                        }
+                                    }
                                 }
-                            }
-                            .labelsHidden()
-                            .onChange(of: selectedCameraID) { newValue in
-                                if newValue != appDelegate.selectedCameraID {
-                                    appDelegate.selectedCameraID = newValue
-                                    appDelegate.saveSettings()
-                                    appDelegate.restartCamera()
+
+                                // Camera picker (always shown when camera mode to maintain consistent height)
+                                if trackingSource == .camera {
+                                    SubtleDivider()
+
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Camera")
+                                            .font(.system(size: 12))
+
+                                        if availableCameras.isEmpty {
+                                            Text("No cameras found")
+                                                .font(.system(size: 12))
+                                                .foregroundColor(.secondary)
+                                        } else {
+                                            Picker("", selection: $selectedCameraID) {
+                                                ForEach(availableCameras, id: \.id) { camera in
+                                                    Text(camera.name).tag(camera.id)
+                                                }
+                                            }
+                                            .labelsHidden()
+                                            .onChange(of: selectedCameraID) { newValue in
+                                                if newValue != appDelegate.selectedCameraID {
+                                                    appDelegate.selectedCameraID = newValue
+                                                    appDelegate.saveSettings()
+                                                    appDelegate.restartCamera()
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // AirPods status (only when AirPods mode selected)
+                                if trackingSource == .airpods {
+                                    SubtleDivider()
+
+                                    HStack {
+                                        Image(systemName: airPodsAvailable ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                                            .foregroundColor(airPodsAvailable ? .green : .orange)
+                                            .font(.system(size: 12))
+                                        Text(airPodsAvailable ? "AirPods connected" : "Connect compatible AirPods")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
                             }
                         }
 
                         SectionCard("Warning", icon: "eye") {
-                            VStack(alignment: .leading, spacing: 14) {
+                            VStack(alignment: .leading, spacing: 10) {
                                 VStack(alignment: .leading, spacing: 8) {
                                     HStack(spacing: 4) {
                                         Text("Style")
-                                            .font(.system(size: 13))
+                                            .font(.system(size: 12))
 
-                                        HelpButton(text: "How Posturr alerts you when slouching. Blur obscures the screen, Vignette shows a glow from the edges, Border shows colored borders. None disables visual warnings.")
+                                        HelpButton(text: "How Posturr alerts you when slouching. Blur obscures the screen, Vignette shows a glow from the edges, Border shows colored borders, Solid fills the screen completely. None disables visual warnings.")
                                     }
 
                                     WarningStylePicker(selection: $warningMode)
@@ -378,7 +513,7 @@ struct SettingsView: View {
 
                                 HStack {
                                     Text("Color")
-                                        .font(.system(size: 13))
+                                        .font(.system(size: 12))
                                     Spacer()
                                     ColorPicker("", selection: $warningColor, supportsOpacity: false)
                                         .labelsHidden()
@@ -392,7 +527,7 @@ struct SettingsView: View {
                         }
 
                         SectionCard("Sensitivity", icon: "slider.horizontal.3") {
-                            VStack(spacing: 14) {
+                            VStack(spacing: 10) {
                                 LabeledSlider(
                                     title: "Dead Zone",
                                     helpText: "How much you can move before warning starts. A relaxed dead zone allows more natural movement.",
@@ -447,13 +582,32 @@ struct SettingsView: View {
                                 }
                             }
                         }
+
+                        SectionCard("Detection", icon: "gauge.with.dots.needle.33percent") {
+                            LabeledSlider(
+                                title: "Mode",
+                                helpText: "Balance between responsiveness and battery life. Responsive mode detects posture changes quickly. Performance mode uses less CPU and battery.",
+                                value: $detectionModeSlider,
+                                range: 0...2,
+                                step: 1,
+                                leftLabel: "Responsive",
+                                rightLabel: "Performance",
+                                valueLabel: detectionModes[Int(detectionModeSlider)].displayName
+                            )
+                            .onChange(of: detectionModeSlider) { newValue in
+                                let index = Int(newValue)
+                                appDelegate.detectionMode = detectionModes[index]
+                                appDelegate.saveSettings()
+                                appDelegate.applyDetectionMode()
+                            }
+                        }
                     }
                     .frame(maxWidth: .infinity)
 
                     // Right column - Behavior
-                    VStack(spacing: 12) {
+                    VStack(spacing: 8) {
                         SectionCard("Behavior", icon: "gearshape") {
-                            VStack(spacing: 12) {
+                            VStack(spacing: 10) {
                                 SettingRow(
                                     title: "Launch at login",
                                     helpText: "Automatically start Posturr when you log in to your Mac",
@@ -467,7 +621,6 @@ struct SettingsView: View {
                                             try SMAppService.mainApp.unregister()
                                         }
                                     } catch {
-                                        print("Failed to toggle launch at login: \(error)")
                                         launchAtLogin = SMAppService.mainApp.status == .enabled
                                     }
                                 }
@@ -499,9 +652,6 @@ struct SettingsView: View {
                                 .onChange(of: blurWhenAway) { newValue in
                                     appDelegate.blurWhenAway = newValue
                                     appDelegate.saveSettings()
-                                    if !newValue {
-                                        appDelegate.consecutiveNoDetectionFrames = 0
-                                    }
                                 }
 
                                 SubtleDivider()
@@ -518,6 +668,19 @@ struct SettingsView: View {
                                         appDelegate.state = .monitoring
                                     }
                                 }
+
+                                SubtleDivider()
+
+                                ShortcutRecorderView(
+                                    shortcut: $toggleShortcut,
+                                    isEnabled: $toggleShortcutEnabled,
+                                    onShortcutChange: {
+                                        appDelegate.toggleShortcutEnabled = toggleShortcutEnabled
+                                        appDelegate.toggleShortcut = toggleShortcut
+                                        appDelegate.saveSettings()
+                                        appDelegate.updateGlobalKeyMonitor()
+                                    }
+                                )
                             }
                         }
 
@@ -545,19 +708,19 @@ struct SettingsView: View {
                         }) {
                             HStack {
                                 Image(systemName: "arrow.triangle.2.circlepath")
-                                    .font(.system(size: 12, weight: .medium))
+                                    .font(.system(size: 11, weight: .medium))
                                 Text("Recalibrate Posture")
-                                    .font(.system(size: 13, weight: .medium))
+                                    .font(.system(size: 12, weight: .medium))
                             }
                             .foregroundColor(.brandCyan)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
+                            .padding(.vertical, 10)
                             .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .fill(Color.brandCyan.opacity(0.1))
                             )
                             .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .stroke(Color.brandCyan.opacity(0.3), lineWidth: 1)
                             )
                         }
@@ -567,36 +730,9 @@ struct SettingsView: View {
                 }
 
             }
-        .padding(24)
+        .padding(18)
         .frame(width: 640)
         .fixedSize(horizontal: false, vertical: true)
-        .onAppear {
-            loadFromAppDelegate()
-        }
-    }
-
-    private func loadFromAppDelegate() {
-        intensity = appDelegate.intensity
-        deadZone = appDelegate.deadZone
-        blurWhenAway = appDelegate.blurWhenAway
-        showInDock = appDelegate.showInDock
-        pauseOnTheGo = appDelegate.pauseOnTheGo
-        useCompatibilityMode = appDelegate.useCompatibilityMode
-        warningMode = appDelegate.warningMode
-        warningColor = Color(appDelegate.warningColor)
-        warningOnsetDelay = appDelegate.warningOnsetDelay
-
-        // Set slider indices based on loaded values
-        intensitySlider = Double(intensityValues.firstIndex(of: intensity) ?? 2)
-        deadZoneSlider = Double(deadZoneValues.firstIndex(of: deadZone) ?? 2)
-
-        // Load cameras
-        let cameras = appDelegate.getAvailableCameras()
-        availableCameras = cameras.map { (id: $0.uniqueID, name: $0.localizedName) }
-        selectedCameraID = appDelegate.selectedCameraID ?? cameras.first?.uniqueID ?? ""
-
-        // Load launch at login state from system
-        launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 }
 
@@ -786,6 +922,99 @@ struct HelpButton: View {
                 .font(.system(size: 12))
                 .padding(12)
                 .frame(width: 220)
+        }
+    }
+}
+
+// MARK: - Shortcut Recorder View
+
+struct ShortcutRecorderView: View {
+    @Binding var shortcut: KeyboardShortcut
+    @Binding var isEnabled: Bool
+    var onShortcutChange: () -> Void
+
+    @State private var isRecording = false
+    @State private var localMonitor: Any?
+
+    var body: some View {
+        HStack {
+            Text("Shortcut")
+                .font(.system(size: 12))
+
+            HelpButton(text: "Global keyboard shortcut to quickly enable or disable Posturr from anywhere. Click the shortcut field and press your desired key combination.")
+
+            Spacer()
+
+            Toggle("", isOn: $isEnabled)
+                .toggleStyle(.switch)
+                .tint(.brandCyan)
+                .labelsHidden()
+                .onChange(of: isEnabled) { _ in
+                    onShortcutChange()
+                }
+
+            Button(action: {
+                isRecording.toggle()
+                if isRecording {
+                    startRecording()
+                } else {
+                    stopRecording()
+                }
+            }) {
+                Text(isRecording ? "Press keys..." : shortcut.displayString)
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundColor(isRecording ? .secondary : (isEnabled ? .primary : .secondary))
+                    .lineLimit(1)
+                    .frame(minWidth: 90)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(isRecording ? Color.brandCyan.opacity(0.15) : Color.primary.opacity(0.06))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(isRecording ? Color.brandCyan : Color.primary.opacity(0.1), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(!isEnabled)
+            .opacity(isEnabled ? 1.0 : 0.5)
+        }
+        .onDisappear {
+            stopRecording()
+        }
+    }
+
+    private func startRecording() {
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Ignore modifier-only keys
+            let modifierKeyCodes: Set<UInt16> = [54, 55, 56, 57, 58, 59, 60, 61, 62, 63]  // Cmd, Shift, Ctrl, Option, Fn, etc.
+            if modifierKeyCodes.contains(event.keyCode) {
+                return event
+            }
+
+            // Require at least one modifier
+            let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let hasModifier = modifiers.contains(.command) || modifiers.contains(.control) ||
+                             modifiers.contains(.option) || modifiers.contains(.shift)
+
+            if hasModifier {
+                shortcut = KeyboardShortcut(keyCode: event.keyCode, modifiers: modifiers)
+                stopRecording()
+                onShortcutChange()
+                return nil  // Consume the event
+            }
+
+            return event
+        }
+    }
+
+    private func stopRecording() {
+        isRecording = false
+        if let monitor = localMonitor {
+            NSEvent.removeMonitor(monitor)
+            localMonitor = nil
         }
     }
 }

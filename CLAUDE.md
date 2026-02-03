@@ -2,7 +2,40 @@
 
 ## Releasing
 
+### Ship It (Full Release Workflow)
+
+When the user says "ship it", perform the complete release workflow:
+
+1. **Bump version** in `build.sh`
+2. **Commit** cleanup/feature changes with proper attribution
+3. **Merge** to main (if on a feature branch)
+4. **Run `./release.sh X.Y.Z`** - builds, signs, notarizes, creates GitHub release
+5. **Update release notes** with user-friendly description via `gh release edit`
+6. **Update CHANGELOG.md** with new version entry
+7. **Update README.md** contributors section if applicable
+8. **Commit and push** changelog/readme updates
+9. **Comment on PR/issue** thanking contributor and linking to release
+10. **Update Homebrew tap**:
+    ```bash
+    # Get SHA256
+    gh release view vX.Y.Z --repo tldev/posturr --json assets --jq '.assets[] | select(.name | endswith(".zip")) | .url' | xargs curl -sL | shasum -a 256 | cut -d' ' -f1
+
+    # Update tap
+    cd /tmp && rm -rf homebrew-tap && git clone git@github.com:tldev/homebrew-tap.git
+    cd homebrew-tap
+    # Update version and sha256 in Casks/posturr.rb
+    git add . && git commit -m "Update Posturr to vX.Y.Z" && git push
+    ```
+
 ### GitHub Release (Direct Distribution)
+
+**IMPORTANT: Before releasing, always check existing releases and tags:**
+```bash
+gh release list --limit 5
+git tag --sort=-v:refname | head -5
+```
+Only proceed if the version you're about to release doesn't already exist.
+
 Always use the release script for GitHub releases:
 ```bash
 ./release.sh 1.0.X
@@ -139,6 +172,31 @@ pkill -x Posturr; rm -rf /Applications/Posturr.app && cp -r build/Posturr.app /A
 ```
 
 This prevents file locking issues and permission errors from code signing.
+
+## Clearing Settings (Reset to Onboarding)
+
+To reset the app and trigger the onboarding flow again:
+```bash
+pkill -x Posturr
+rm -f ~/Library/Preferences/com.thelazydeveloper.posturr.plist
+killall cfprefsd
+```
+
+Note: The bundle ID is `com.thelazydeveloper.posturr`, NOT `com.posturr`.
+
+## Start Fresh (Rebuild + Reset + Launch)
+
+To rebuild, reinstall, clear settings and permissions, and launch the app:
+```bash
+pkill -x Posturr; ./build.sh && rm -rf /Applications/Posturr.app && cp -r build/Posturr.app /Applications/ && rm -f ~/Library/Preferences/com.thelazydeveloper.posturr.plist && killall cfprefsd 2>/dev/null && tccutil reset Camera com.thelazydeveloper.posturr 2>/dev/null && tccutil reset Motion com.thelazydeveloper.posturr 2>/dev/null && tccutil reset Bluetooth com.thelazydeveloper.posturr 2>/dev/null; open /Applications/Posturr.app
+```
+
+## Code Quality Rules
+
+**NEVER use delays/timeouts to solve timing problems.** They are hacks that hide the real issue. Instead:
+- Fix the actual sequencing/state management
+- Use proper callbacks or completion handlers
+- Wait for actual events, not arbitrary time periods
 
 ## Workflow for Bug Fixes and Features
 

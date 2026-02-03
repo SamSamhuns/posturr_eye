@@ -13,7 +13,7 @@ set -e
 # Configuration
 APP_NAME="Posturr"
 BUNDLE_ID="com.thelazydeveloper.posturr"
-VERSION="1.4.3"
+VERSION="1.5.4"
 MIN_MACOS="13.0"
 
 # Check for App Store build flag
@@ -77,6 +77,8 @@ swiftc \
     -framework AVFoundation \
     -framework Vision \
     -framework CoreImage \
+    -framework CoreMotion \
+    -framework IOBluetooth \
     -o "$MACOS_DIR/${APP_NAME}_arm64" \
     $SWIFT_FILES
 
@@ -90,6 +92,8 @@ swiftc \
     -framework AVFoundation \
     -framework Vision \
     -framework CoreImage \
+    -framework CoreMotion \
+    -framework IOBluetooth \
     -o "$MACOS_DIR/${APP_NAME}_x86" \
     $SWIFT_FILES
 
@@ -130,6 +134,10 @@ cat > "$CONTENTS/Info.plist" << EOF
     <string>public.app-category.healthcare-fitness</string>
     <key>NSCameraUsageDescription</key>
     <string>Posturr needs camera access to monitor your posture and blur the screen when you slouch.</string>
+    <key>NSMotionUsageDescription</key>
+    <string>Posturr needs access to motion data to monitor your posture using AirPods.</string>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Posturr uses Bluetooth to detect paired AirPods for head motion tracking.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>CFBundleIconFile</key>
@@ -147,6 +155,13 @@ elif [ -d "$SCRIPT_DIR/Posturr.iconset" ]; then
     iconutil -c icns -o "$RESOURCES_DIR/AppIcon.icns" "$SCRIPT_DIR/Posturr.iconset"
 else
     echo -e "${YELLOW}Warning: No app icon found. The app will use default icon.${NC}"
+fi
+
+# Copy custom menu bar icons if they exist
+if [ -d "$SOURCES_DIR/Icons" ]; then
+    echo "Copying custom menu bar icons..."
+    mkdir -p "$RESOURCES_DIR/Icons"
+    cp "$SOURCES_DIR/Icons"/*.pdf "$RESOURCES_DIR/Icons/" 2>/dev/null || true
 fi
 
 # Create entitlements file
