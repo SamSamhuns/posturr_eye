@@ -381,9 +381,10 @@ final class SettingsProfileManager {
         warningOnsetDelay: Double,
         detectionMode: DetectionMode
     ) -> SettingsProfile {
+        let uniqueName = uniqueProfileName(for: name)
         let profile = SettingsProfile(
             id: UUID().uuidString,
-            name: name,
+            name: uniqueName,
             warningMode: warningMode,
             warningColorData: SettingsProfile.encodedColorData(from: warningColor),
             deadZone: deadZone,
@@ -395,6 +396,39 @@ final class SettingsProfileManager {
         currentSettingsProfileID = profile.id
         saveProfiles()
         return profile
+    }
+
+    func canDeleteProfile(id: String) -> Bool {
+        guard settingsProfiles.count > 1 else { return false }
+        guard let profile = settingsProfiles.first(where: { $0.id == id }) else { return false }
+        return profile.name != "Default"
+    }
+
+    func deleteProfile(id: String) -> Bool {
+        guard canDeleteProfile(id: id) else { return false }
+        guard let index = settingsProfiles.firstIndex(where: { $0.id == id }) else { return false }
+
+        settingsProfiles.remove(at: index)
+
+        // If we deleted the current profile, switch to another
+        if currentSettingsProfileID == id {
+            currentSettingsProfileID = settingsProfiles.first?.id
+        }
+
+        saveProfiles()
+        return true
+    }
+
+    private func uniqueProfileName(for name: String) -> String {
+        let existingNames = Set(settingsProfiles.map { $0.name })
+        if !existingNames.contains(name) {
+            return name
+        }
+        var index = 2
+        while existingNames.contains("\(name) \(index)") {
+            index += 1
+        }
+        return "\(name) \(index)"
     }
 
     private func saveProfiles() {

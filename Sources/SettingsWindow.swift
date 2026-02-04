@@ -287,7 +287,12 @@ struct SettingsView: View {
     @State private var lastSelectedSettingsProfileID: String
     @State private var isApplyingProfileSelection = false
     @State private var showingNewProfilePrompt = false
+    @State private var showingDeleteConfirmation = false
     @State private var newProfileName = ""
+
+    var canDeleteCurrentProfile: Bool {
+        settingsProfileManager.canDeleteProfile(id: selectedSettingsProfileID)
+    }
 
     let detectionModes: [DetectionMode] = [.responsive, .balanced, .performance]
 
@@ -318,8 +323,8 @@ struct SettingsView: View {
 
         _intensity = State(initialValue: profileIntensity)
         _deadZone = State(initialValue: profileDeadZone)
-        _intensitySlider = State(initialValue: Double(intensityValues.firstIndex(of: profileIntensity) ?? 2))
-        _deadZoneSlider = State(initialValue: Double(deadZoneValues.firstIndex(of: profileDeadZone) ?? 2))
+        _intensitySlider = State(initialValue: Double(Self.closestIndex(for: Double(profileIntensity), in: intensityValues)))
+        _deadZoneSlider = State(initialValue: Double(Self.closestIndex(for: Double(profileDeadZone), in: deadZoneValues)))
         _blurWhenAway = State(initialValue: appDelegate.blurWhenAway)
         _showInDock = State(initialValue: appDelegate.showInDock)
         _pauseOnTheGo = State(initialValue: appDelegate.pauseOnTheGo)
@@ -398,114 +403,141 @@ struct SettingsView: View {
 
             SubtleDivider()
 
-            // Profiles & Warning Section
-            VStack(spacing: 6) {
-                HStack(spacing: 8) {
-                    Text("Profile")
-                        .font(.system(size: 11, weight: .medium))
-                        .frame(width: 58, alignment: .leading)
+            // Tracking row (not part of profile)
+            HStack(spacing: 8) {
+                Text("Tracking")
+                    .font(.system(size: 11, weight: .medium))
+                    .frame(width: 58, alignment: .leading)
 
-                    Picker("", selection: $selectedSettingsProfileID) {
-                        ForEach(settingsProfiles) { profile in
-                            Text(profile.name).tag(profile.id)
-                        }
+                CompactTrackingSourcePicker(
+                    selection: $trackingSource,
+                    airPodsAvailable: airPodsAvailable
+                )
+                .frame(width: 130)
+                .onChange(of: trackingSource) { newValue in
+                    if newValue != appDelegate.trackingSource {
+                        appDelegate.switchTrackingSource(to: newValue)
                     }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-                    .onChange(of: selectedSettingsProfileID) { newValue in
-                        handleProfileSelectionChange(newValue)
-                    }
-
-                    Button(action: {
-                        newProfileName = ""
-                        showingNewProfilePrompt = true
-                    }) {
-                        HStack(spacing: 3) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 9, weight: .medium))
-                            Text("New")
-                                .font(.system(size: 10, weight: .medium))
-                        }
-                        .foregroundColor(.brandCyan)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                .fill(Color.brandCyan.opacity(0.1))
-                        )
-                    }
-                    .buttonStyle(.plain)
                 }
-                .frame(height: 26)
 
-                // Tracking row
-                HStack(spacing: 8) {
-                    Text("Tracking")
-                        .font(.system(size: 11, weight: .medium))
-                        .frame(width: 58, alignment: .leading)
-
-                    CompactTrackingSourcePicker(
-                        selection: $trackingSource,
-                        airPodsAvailable: airPodsAvailable
-                    )
-                    .frame(width: 130)
-                    .onChange(of: trackingSource) { newValue in
-                        if newValue != appDelegate.trackingSource {
-                            appDelegate.switchTrackingSource(to: newValue)
-                        }
-                    }
-
-                    if trackingSource == .camera {
-                        if availableCameras.isEmpty {
-                            Text("No cameras")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                        } else {
-                            Picker("", selection: $selectedCameraID) {
-                                ForEach(availableCameras, id: \.id) { camera in
-                                    Text(camera.name).tag(camera.id)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity)
-                            .onChange(of: selectedCameraID) { newValue in
-                                if newValue != appDelegate.selectedCameraID {
-                                    appDelegate.selectedCameraID = newValue
-                                    appDelegate.saveSettings()
-                                    appDelegate.restartCamera()
-                                }
-                            }
-                        }
+                if trackingSource == .camera {
+                    if availableCameras.isEmpty {
+                        Text("No cameras")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
                     } else {
-                        // AirPods status
-                        HStack(spacing: 4) {
-                            Image(systemName: airPodsAvailable ? "checkmark.circle.fill" : "exclamationmark.circle")
-                                .foregroundColor(airPodsAvailable ? .green : .secondary)
-                                .font(.system(size: 10))
-                            Text(airPodsAvailable ? "Connected" : "Not connected")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
+                        Picker("", selection: $selectedCameraID) {
+                            ForEach(availableCameras, id: \.id) { camera in
+                                Text(camera.name).tag(camera.id)
+                            }
                         }
-                        Spacer()
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                        .onChange(of: selectedCameraID) { newValue in
+                            if newValue != appDelegate.selectedCameraID {
+                                appDelegate.selectedCameraID = newValue
+                                appDelegate.saveSettings()
+                                appDelegate.restartCamera()
+                            }
+                        }
+                    }
+                } else {
+                    // AirPods status
+                    HStack(spacing: 4) {
+                        Image(systemName: airPodsAvailable ? "checkmark.circle.fill" : "exclamationmark.circle")
+                            .foregroundColor(airPodsAvailable ? .green : .secondary)
+                            .font(.system(size: 10))
+                        Text(airPodsAvailable ? "Connected" : "Not connected")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                }
+
+                // Recalibrate button
+                Button(action: { appDelegate.startCalibration() }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Recalibrate")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.brandCyan)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(height: 26)
+            .padding(.vertical, 10)
+
+            // Profile Section Card
+            VStack(spacing: 6) {
+                // Profile header row - aligned with Warning row below
+                HStack(spacing: 8) {
+                    HStack(spacing: 3) {
+                        Text("Profile")
+                            .font(.system(size: 11, weight: .medium))
+                            .frame(width: 62, alignment: .leading)
+                        HelpButton(text: "Save different configurations for different situations. Switch profiles to instantly apply all settings below.")
                     }
 
-                    // Recalibrate button
-                    Button(action: { appDelegate.startCalibration() }) {
-                        HStack(spacing: 3) {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 9, weight: .medium))
-                            Text("Recalibrate")
-                                .font(.system(size: 10, weight: .medium))
+                    HStack(spacing: 4) {
+                        Picker("", selection: $selectedSettingsProfileID) {
+                            ForEach(settingsProfiles) { profile in
+                                Text(profile.name).tag(profile.id)
+                            }
                         }
-                        .foregroundColor(.brandCyan)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                .fill(Color.brandCyan.opacity(0.1))
-                        )
+                        .labelsHidden()
+                        .frame(width: 100)
+                        .padding(.horizontal, -4)
+                        .onChange(of: selectedSettingsProfileID) { newValue in
+                            handleProfileSelectionChange(newValue)
+                        }
+
+                        Button(action: {
+                            newProfileName = ""
+                            showingNewProfilePrompt = true
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text("New")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color.brandCyan)
+                            )
+                        }
+                        .buttonStyle(.plain)
+
+                        // Delete button - only enabled for non-Default profiles when more than one exists
+                        Button(action: {
+                            showingDeleteConfirmation = true
+                        }) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(canDeleteCurrentProfile ? .white : .secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(canDeleteCurrentProfile ? Color.red : Color.secondary.opacity(0.15))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!canDeleteCurrentProfile)
                     }
-                    .buttonStyle(.plain)
+
+                    Spacer()
                 }
                 .frame(height: 26)
 
@@ -513,10 +545,10 @@ struct SettingsView: View {
                 HStack(spacing: 8) {
                     HStack(spacing: 3) {
                         Text("Warning")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 11))
+                            .frame(width: 62, alignment: .leading)
                         HelpButton(text: "Blur obscures the screen, Vignette shows edge glow, Border shows colored borders, Solid fills screen. None disables visual warnings.")
                     }
-                    .frame(width: 72, alignment: .leading)
 
                     CompactWarningStylePicker(selection: $warningMode)
                         .frame(maxWidth: .infinity)
@@ -536,13 +568,8 @@ struct SettingsView: View {
                         }
                 }
                 .frame(height: 26)
-            }
-            .padding(.vertical, 10)
 
-            SubtleDivider()
-
-            // Sensitivity Section
-            VStack(spacing: 4) {
+                // Sliders
                 CompactSlider(
                     title: "Dead Zone",
                     helpText: "How much you can move before warning starts. A relaxed dead zone allows more natural movement.",
@@ -600,9 +627,14 @@ struct SettingsView: View {
                     appDelegate.applyActiveSettingsProfile()
                 }
             }
-            .padding(.vertical, 10)
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(0.04))
+            )
 
             SubtleDivider()
+                .padding(.top, 6)
 
             // Behavior Section - 2 column grid with fixed widths
             VStack(spacing: 6) {
@@ -735,17 +767,37 @@ struct SettingsView: View {
         } message: {
             Text("Name your settings profile.")
         }
+        .alert("Delete Profile", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                if settingsProfileManager.deleteProfile(id: selectedSettingsProfileID) {
+                    settingsProfiles = settingsProfileManager.settingsProfiles
+                    if let newID = settingsProfileManager.currentSettingsProfileID {
+                        selectedSettingsProfileID = newID
+                        lastSelectedSettingsProfileID = newID
+                    }
+                    appDelegate.applyActiveSettingsProfile()
+                    syncProfileSettings()
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete this profile? This cannot be undone.")
+        }
     }
 
     private func syncProfileSettings() {
         intensity = appDelegate.activeIntensity
         deadZone = appDelegate.activeDeadZone
-        intensitySlider = Double(intensityValues.firstIndex(of: appDelegate.activeIntensity) ?? 2)
-        deadZoneSlider = Double(deadZoneValues.firstIndex(of: appDelegate.activeDeadZone) ?? 2)
+        intensitySlider = Double(Self.closestIndex(for: Double(appDelegate.activeIntensity), in: intensityValues))
+        deadZoneSlider = Double(Self.closestIndex(for: Double(appDelegate.activeDeadZone), in: deadZoneValues))
         warningMode = appDelegate.activeWarningMode
         warningColor = Color(appDelegate.activeWarningColor)
         warningOnsetDelay = appDelegate.activeWarningOnsetDelay
         detectionModeSlider = Double(detectionModes.firstIndex(of: appDelegate.activeDetectionMode) ?? 0)
+    }
+
+    private static func closestIndex(for value: Double, in values: [Double]) -> Int {
+        values.enumerated().min(by: { abs($0.element - value) < abs($1.element - value) })?.offset ?? 0
     }
 
     private func handleProfileSelectionChange(_ newValue: String) {
