@@ -11,6 +11,10 @@ Posturr monitors your posture in real-time using either your Mac's camera or Air
 
 **Join our Discord** to share feedback, get help, suggest features, and connect with other Posturr users!
 
+<p align="center">
+  <img src="assets/posturr-preview.gif" width="640" alt="Posturr demo: slouching triggers screen blur, good posture keeps it clear">
+</p>
+
 ## Screenshots
 
 <p align="center">
@@ -225,3 +229,4 @@ Want this on Linux? See [postured](https://github.com/vadi2/postured).
 - [@gcanyon](https://github.com/gcanyon) - Warning onset delay feature suggestion
 - [@javabudd](https://github.com/javabudd) - Analytics dashboard
 - [@danielroek](https://github.com/danielroek) - "None" warning style option
+- [@claaslange](https://github.com/claaslange) - Camera compatibility issue with professional cameras

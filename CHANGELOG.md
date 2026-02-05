@@ -5,6 +5,75 @@ All notable changes to Posturr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-02-04
+
+### Changed
+- Improved DMG installer appearance with modern, professional design matching today's macOS apps
+
+## [1.7.0] - 2026-02-04
+
+### Added
+- Inline color picker with color wheel, brightness slider, and hex input - replaces the floating system color panel
+
+## [1.6.1] - 2026-02-04
+
+### Changed
+- Cleaner calibration instructions ("Look at the top-left corner" instead of "Screen 1 TOP-LEFT")
+- Keyboard shortcuts display as visual keycaps during calibration
+- Settings window remembers its position between opens
+
+### Fixed
+- Respects system "Reduce motion" accessibility setting (calibration ring no longer pulses)
+
+## [1.6.0] - 2026-02-04
+
+### Added
+- Settings Profiles - save different configurations for different situations (Work, Home, Standing Desk) and switch between them instantly
+- Profile deletion with confirmation (Default profile is protected)
+- Duplicate profile names are automatically numbered
+
+### Acknowledgments
+- Thanks to [@lucapericlp](https://github.com/lucapericlp) for implementing settings profiles!
+
+## [1.5.10] - 2026-02-04
+
+### Changed
+- Reduced CPU usage by skipping unnecessary work when posture is good
+
+### Acknowledgments
+- Thanks to [@SHxKM](https://github.com/SHxKM) for reporting high CPU usage in AirPods mode!
+
+## [1.5.9] - 2026-02-03
+
+### Changed
+- "Blur when away" toggle is now disabled in AirPods mode since this feature requires camera-based face detection
+
+## [1.5.8] - 2026-02-03
+
+### Fixed
+- Switching to AirPods tracking without calibration now correctly pauses the app instead of incorrectly showing "Good Posture"
+
+## [1.5.7] - 2026-02-03
+
+### Changed
+- Completely redesigned Settings window for small screens (720p compatible)
+- Reduced Settings window size by 45% (640×750px → 480×350px)
+- Compact inline controls with smaller toggles
+- Two-column layout for behavior settings
+
+## [1.5.6] - 2026-02-03
+
+### Fixed
+- False positive posture warnings immediately after calibration - forward-head detection now uses maximum face width from calibration instead of average
+
+## [1.5.5] - 2026-02-03
+
+### Fixed
+- Camera compatibility with professional cameras and capture cards (e.g., Elgato with Nikon mirrorless) - resolved distorted, green-tinted video during calibration by using standard VGA resolution and RGB color format
+
+### Acknowledgments
+- Thanks to [@claaslange](https://github.com/claaslange) for reporting this issue!
+
 ## [1.5.4] - 2026-02-02
 
 ### Fixed
