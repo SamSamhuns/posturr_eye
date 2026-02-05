@@ -76,12 +76,6 @@ class CalibrationView: NSView {
             .paragraphStyle: paragraphStyle
         ]
 
-        let hintAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 18, weight: .medium),
-            .foregroundColor: NSColor.cyan,
-            .paragraphStyle: paragraphStyle
-        ]
-
         // Draw step indicator at top center
         let stepRect = NSRect(x: 0, y: bounds.height - 100, width: bounds.width, height: 40)
         (stepText as NSString).draw(in: stepRect, withAttributes: stepAttrs)
