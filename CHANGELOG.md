@@ -5,6 +5,16 @@ All notable changes to Posturr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-02-04
+
+### Changed
+- Cleaner calibration instructions ("Look at the top-left corner" instead of "Screen 1 TOP-LEFT")
+- Keyboard shortcuts display as visual keycaps during calibration
+- Settings window remembers its position between opens
+
+### Fixed
+- Respects system "Reduce motion" accessibility setting (calibration ring no longer pulses)
+
 ## [1.6.0] - 2026-02-04
 
 ### Added
