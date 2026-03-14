@@ -180,6 +180,19 @@ class AirPodsPostureDetector: NSObject, PostureDetector {
         return airPodsList
     }
 
+    /// Check if any paired AirPods are currently Bluetooth-connected.
+    /// Unlike `isConnected` (which requires active motion tracking), this uses
+    /// IOBluetooth and works without Motion permission.
+    var isBluetoothConnected: Bool {
+        guard let devices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] else {
+            return false
+        }
+        return devices.contains { device in
+            guard let name = device.name?.lowercased() else { return false }
+            return name.contains("airpods") && device.isConnected()
+        }
+    }
+
     var onPostureReading: ((PostureReading) -> Void)?
     var onCalibrationUpdate: ((CalibrationSample) -> Void)?
 
