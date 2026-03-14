@@ -64,7 +64,7 @@
 "trackingSource.camera" = "カメラ";
 "trackingSource.airpods" = "AirPods";
 "trackingSource.camera.description" = "カメラで頭の位置を追跡します。すべての Mac カメラで動作します。";
-"trackingSource.airpods.description" = "モーションセンサーで頭の傾きを検出します。AirPods Pro、Max、または第3世代が必要です。";
+"trackingSource.airpods.description" = "モーションセンサーで頭の傾きを検出します。AirPods Pro、Max、第3世代、またはANC付き第4世代が必要です。";
 "trackingSource.camera.requirement" = "カメラへのアクセスが必要";
 "trackingSource.airpods.requirement" = "macOS 14以降と対応する AirPods が必要";
 
@@ -75,7 +75,7 @@
 "airpods.requiresMacOS14" = "macOS 14.0 以降が必要";
 "airpods.noCompatibleConnected" = "対応する AirPods が接続されていません";
 "airpods.failedCreateManager" = "モーションマネージャーの作成に失敗しました";
-"airpods.noCompatiblePaired" = "対応する AirPods がペアリングされていません。AirPods Pro、Max、または第3世代をペアリングしてください。";
+"airpods.noCompatiblePaired" = "対応する AirPods がペアリングされていません。AirPods Pro、Max、第3世代、またはANC付き第4世代をペアリングしてください。";
 
 // MARK: - Alerts (AppDelegate.swift)
 
