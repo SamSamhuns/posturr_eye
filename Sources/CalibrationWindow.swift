@@ -9,6 +9,7 @@ class CalibrationView: NSView {
     var stepText: String = L("calibration.stepOf", 1, 4)
     var showRing: Bool = true
     var waitingForAirPods: Bool = false
+    var isWaitingForDesktop: Bool = false
     private var keycapSegmentCache: [String: [(text: String, isKeycap: Bool)]] = [:]
 
     override func draw(_ dirtyRect: NSRect) {
@@ -17,6 +18,12 @@ class CalibrationView: NSView {
         // Dark overlay
         NSColor.black.withAlphaComponent(0.85).setFill()
         dirtyRect.fill()
+
+        // Show desktop waiting state
+        if isWaitingForDesktop {
+            drawWaitingForDesktop()
+            return
+        }
 
         // Show AirPods waiting state
         if waitingForAirPods {
@@ -234,6 +241,54 @@ class CalibrationView: NSView {
             fontSize: 14
         )
     }
+
+    private func drawWaitingForDesktop() {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
+
+        // Draw pulsing monitor icon
+        let iconAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 72, weight: .light),
+            .foregroundColor: NSColor.cyan.withAlphaComponent(0.7 + 0.3 * sin(pulsePhase)),
+            .paragraphStyle: paragraphStyle
+        ]
+        let iconRect = NSRect(x: 0, y: bounds.midY + 20, width: bounds.width, height: 90)
+        ("🖥️" as NSString).draw(in: iconRect, withAttributes: iconAttrs)
+
+        // Main instruction
+        let titleAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 28, weight: .semibold),
+            .foregroundColor: NSColor.white,
+            .paragraphStyle: paragraphStyle
+        ]
+        let titleRect = NSRect(x: 0, y: bounds.midY - 30, width: bounds.width, height: 45)
+        (L("calibration.desktop.exitFullscreen") as NSString).draw(in: titleRect, withAttributes: titleAttrs)
+
+        // Subtitle
+        let subtitleAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 16, weight: .regular),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.7),
+            .paragraphStyle: paragraphStyle
+        ]
+        let subtitleRect = NSRect(x: 0, y: bounds.midY - 70, width: bounds.width, height: 30)
+        (L("calibration.desktop.calibrateNormally") as NSString).draw(in: subtitleRect, withAttributes: subtitleAttrs)
+
+        // Keyboard shortcut hint
+        drawLocalizedHintWithKeycap(
+            text: L("calibration.desktop.shortcutHint"),
+            centerY: bounds.midY - 115,
+            textColor: NSColor.white.withAlphaComponent(0.5),
+            fontSize: 14
+        )
+
+        // Escape hint
+        drawLocalizedHintWithKeycap(
+            text: L("calibration.airpods.escToCancel"),
+            centerY: bounds.midY - 150,
+            textColor: NSColor.white.withAlphaComponent(0.5),
+            fontSize: 14
+        )
+    }
 }
 
 // MARK: - Calibration Window Controller
@@ -257,8 +312,14 @@ class CalibrationWindowController: NSObject {
     // Waiting for detector connection (e.g., AirPods in ears)
     var isWaitingForConnection: Bool = false
 
+    // Waiting for user to exit fullscreen / switch to desktop
+    var isWaitingForDesktop: Bool = false
+
     // Store the original connection callback to restore later
     var originalConnectionCallback: ((Bool) -> Void)?
+
+    // Observer for space changes (fullscreen detection)
+    var spaceChangeObserver: Any?
 
     struct CalibrationStep {
         let instruction: String
@@ -370,26 +431,17 @@ class CalibrationWindowController: NSObject {
         // Save the original callback to restore later
         originalConnectionCallback = detector.onConnectionStateChange
 
-        if !detector.isConnected {
-            // Show waiting state with lower window level so permission dialogs appear on top
-            isWaitingForConnection = true
+        if isFullscreenAppActive() {
+            // Fullscreen app is active — use shielding level to appear above fullscreen content
+            isWaitingForDesktop = true
             for window in windows {
-                window.level = .floating  // Lower level allows system dialogs on top
+                window.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
+                window.orderFrontRegardless()
             }
-            showWaitingForConnection()
-
-            // Subscribe to connection state changes (wrapping the original callback)
-            detector.onConnectionStateChange = { [weak self] isConnected in
-                // Call our handler for calibration
-                if isConnected {
-                    self?.detectorConnected()
-                }
-                // Also call the original callback so AppDelegate stays in sync
-                self?.originalConnectionCallback?(isConnected)
-            }
+            showWaitingForDesktop()
+            startSpaceChangeMonitoring()
         } else {
-            // Already connected and authorized - proceed with calibration
-            updateStep()
+            checkDetectorAndProceed()
         }
 
         startAnimation()
@@ -417,6 +469,119 @@ class CalibrationWindowController: NSObject {
             view.needsDisplay = true
         }
         updateStep()
+    }
+
+    func showWaitingForDesktop() {
+        for view in calibrationViews {
+            view.isWaitingForDesktop = true
+            view.showRing = false
+            view.needsDisplay = true
+        }
+    }
+
+    private func checkDetectorAndProceed() {
+        guard let detector else { return }
+        if !detector.isConnected {
+            isWaitingForConnection = true
+            for window in windows {
+                window.level = .floating  // Lower level allows system dialogs on top
+            }
+            showWaitingForConnection()
+
+            detector.onConnectionStateChange = { [weak self] isConnected in
+                if isConnected {
+                    self?.detectorConnected()
+                }
+                self?.originalConnectionCallback?(isConnected)
+            }
+        } else {
+            updateStep()
+        }
+    }
+
+    private func isFullscreenAppActive() -> Bool {
+        let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly, .excludeDesktopElements)
+        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return false
+        }
+
+        let myPID = Int(ProcessInfo.processInfo.processIdentifier)
+        let primaryScreenHeight = NSScreen.screens.first?.frame.height ?? 0
+
+        for screen in NSScreen.screens {
+            // Convert NSScreen frame (bottom-left origin) to CG frame (top-left origin)
+            let cgScreenFrame = CGRect(
+                x: screen.frame.origin.x,
+                y: primaryScreenHeight - screen.frame.origin.y - screen.frame.height,
+                width: screen.frame.width,
+                height: screen.frame.height
+            )
+
+            for windowInfo in windowList {
+                // Skip our own windows
+                if let pid = windowInfo[kCGWindowOwnerPID as String] as? Int, pid == myPID {
+                    continue
+                }
+
+                // Only check normal-level app windows (layer 0)
+                guard let layer = windowInfo[kCGWindowLayer as String] as? Int, layer == 0 else {
+                    continue
+                }
+
+                guard let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat],
+                      let x = boundsDict["X"], let y = boundsDict["Y"],
+                      let w = boundsDict["Width"], let h = boundsDict["Height"] else {
+                    continue
+                }
+
+                let windowFrame = CGRect(x: x, y: y, width: w, height: h)
+
+                // A window that covers the entire screen (including menu bar area) is fullscreen
+                if windowFrame.width >= cgScreenFrame.width && windowFrame.height >= cgScreenFrame.height {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    private func startSpaceChangeMonitoring() {
+        spaceChangeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.checkIfDesktopReady()
+            }
+        }
+    }
+
+    private func stopSpaceChangeMonitoring() {
+        if let observer = spaceChangeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            spaceChangeObserver = nil
+        }
+    }
+
+    private func checkIfDesktopReady() {
+        guard isWaitingForDesktop else { return }
+        guard !isFullscreenAppActive() else { return }
+
+        isWaitingForDesktop = false
+        stopSpaceChangeMonitoring()
+
+        for window in windows {
+            window.level = .screenSaver + 1
+        }
+        NSApp.activate(ignoringOtherApps: true)
+
+        for view in calibrationViews {
+            view.isWaitingForDesktop = false
+            view.needsDisplay = true
+        }
+
+        checkDetectorAndProceed()
     }
 
     func updateStep() {
@@ -461,8 +626,8 @@ class CalibrationWindowController: NSObject {
     }
 
     func captureCurrentPosition() {
-        // Don't capture while waiting for detector connection
-        guard !isWaitingForConnection else { return }
+        // Don't capture while waiting for detector connection or desktop switch
+        guard !isWaitingForConnection, !isWaitingForDesktop else { return }
 
         // Get current calibration value from the detector
         if let detector {
@@ -500,6 +665,8 @@ class CalibrationWindowController: NSObject {
         // Restore original connection callback
         detector?.onConnectionStateChange = originalConnectionCallback
         originalConnectionCallback = nil
+
+        stopSpaceChangeMonitoring()
 
         for window in windows {
             window.orderOut(nil)
