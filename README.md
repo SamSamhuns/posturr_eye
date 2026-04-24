@@ -237,3 +237,4 @@ Want this on Linux? See [postured](https://github.com/vadi2/postured) or [dorso-
 - [@bradystroud](https://github.com/bradystroud) - Automatic source switching feature suggestion
 - [@emmanuelprecieuxargent](https://github.com/emmanuelprecieuxargent) - Improved French and Spanish translations
 - [@shencangsheng](https://github.com/shencangsheng) - AirPods 4 compatibility detection report
+- [@zhouyeyu](https://github.com/zhouyeyu) - Initial fix for warning overlays and calibration over fullscreen apps
