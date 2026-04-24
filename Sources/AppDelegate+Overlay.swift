@@ -10,7 +10,7 @@ extension AppDelegate {
             let window = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
             window.isOpaque = false
             window.backgroundColor = .clear
-            window.level = .screenSaver + 1
+            window.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             window.ignoresMouseEvents = true
             window.hasShadow = false

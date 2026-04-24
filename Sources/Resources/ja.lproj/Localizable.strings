@@ -107,9 +107,6 @@
 "calibration.airpods.putIn" = "AirPods を装着してください";
 "calibration.airpods.autoBegin" = "キャリブレーションが自動的に開始されます";
 "calibration.airpods.escToCancel" = "{Esc} でキャンセル";
-"calibration.desktop.exitFullscreen" = "フルスクリーンを終了してください";
-"calibration.desktop.calibrateNormally" = "通常の作業姿勢でキャリブレーションを行ってください";
-"calibration.desktop.shortcutHint" = "{⌘⌃F} でフルスクリーンを終了";
 
 // MARK: - Settings Window (SettingsWindow.swift)
 

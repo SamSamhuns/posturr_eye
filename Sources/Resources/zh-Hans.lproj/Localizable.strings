@@ -107,9 +107,6 @@
 "calibration.airpods.putIn" = "请佩戴您的 AirPods";
 "calibration.airpods.autoBegin" = "校准将自动开始";
 "calibration.airpods.escToCancel" = "按 {Esc} 取消";
-"calibration.desktop.exitFullscreen" = "请退出全屏模式";
-"calibration.desktop.calibrateNormally" = "请在日常工作的桌面状态下进行校准";
-"calibration.desktop.shortcutHint" = "按 {⌘⌃F} 退出全屏";
 
 // MARK: - Settings Window (SettingsWindow.swift)
 

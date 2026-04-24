@@ -107,9 +107,6 @@
 "calibration.airpods.putIn" = "Setzen Sie Ihre AirPods ein";
 "calibration.airpods.autoBegin" = "Die Kalibrierung beginnt automatisch";
 "calibration.airpods.escToCancel" = "{Esc} drücken zum Abbrechen";
-"calibration.desktop.exitFullscreen" = "Vollbildmodus beenden";
-"calibration.desktop.calibrateNormally" = "Kalibrieren Sie in Ihrer normalen Arbeitsposition";
-"calibration.desktop.shortcutHint" = "{⌘⌃F} drücken um Vollbild zu beenden";
 
 // MARK: - Settings Window (SettingsWindow.swift)
 
