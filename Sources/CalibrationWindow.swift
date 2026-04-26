@@ -5,11 +5,11 @@ import AppKit
 class CalibrationView: NSView {
     var targetPosition: NSPoint = .zero
     var pulsePhase: CGFloat = 0
-    var instructionText: String = "Look at the ring and tap Space"
-    var stepText: String = "Step 1 of 4"
-    var hintText: String = "Tap Space while looking at the ring"
+    var instructionText: String = L("calibration.lookAtRing")
+    var stepText: String = L("calibration.stepOf", 1, 4)
     var showRing: Bool = true
     var waitingForAirPods: Bool = false
+    private var keycapSegmentCache: [String: [(text: String, isKeycap: Bool)]] = [:]
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -86,10 +86,8 @@ class CalibrationView: NSView {
 
         // Draw hint with keycap for Space
         let hintY = bounds.midY - 70
-        drawHintWithKeycap(
-            prefix: "Tap ",
-            keycap: "Space",
-            suffix: " while looking at the ring",
+        drawLocalizedHintWithKeycap(
+            text: L("calibration.hint.tapSpace"),
             centerY: hintY,
             textColor: NSColor.cyan,
             fontSize: 18
@@ -97,17 +95,15 @@ class CalibrationView: NSView {
 
         // Draw escape hint with keycap for Esc
         let escapeY = bounds.midY - 110
-        drawHintWithKeycap(
-            prefix: "",
-            keycap: "Esc",
-            suffix: " to skip calibration",
+        drawLocalizedHintWithKeycap(
+            text: L("calibration.hint.escToSkip"),
             centerY: escapeY,
             textColor: NSColor.white.withAlphaComponent(0.5),
             fontSize: 14
         )
     }
 
-    private func drawHintWithKeycap(prefix: String, keycap: String, suffix: String, centerY: CGFloat, textColor: NSColor, fontSize: CGFloat) {
+    private func drawLocalizedHintWithKeycap(text: String, centerY: CGFloat, textColor: NSColor, fontSize: CGFloat) {
         let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
         let keycapFont = NSFont.systemFont(ofSize: fontSize - 1, weight: .semibold)
 
@@ -120,52 +116,83 @@ class CalibrationView: NSView {
             .foregroundColor: NSColor.white
         ]
 
-        // Measure each part
-        let prefixSize = (prefix as NSString).size(withAttributes: textAttrs)
-        let keycapTextSize = (keycap as NSString).size(withAttributes: keycapTextAttrs)
-        let suffixSize = (suffix as NSString).size(withAttributes: textAttrs)
-
-        // Keycap padding
         let keycapPaddingH: CGFloat = 8
         let keycapPaddingV: CGFloat = 4
-        let keycapWidth = keycapTextSize.width + keycapPaddingH * 2
-        let keycapHeight = keycapTextSize.height + keycapPaddingV * 2
 
-        // Total width
-        let totalWidth = prefixSize.width + keycapWidth + suffixSize.width
-        let startX = (bounds.width - totalWidth) / 2
+        let segments = keycapSegments(for: text)
 
-        // Draw prefix
-        var currentX = startX
-        let prefixPoint = NSPoint(x: currentX, y: centerY)
-        (prefix as NSString).draw(at: prefixPoint, withAttributes: textAttrs)
-        currentX += prefixSize.width
+        // Calculate total width
+        var totalWidth: CGFloat = 0
+        for segment in segments {
+            if segment.isKeycap {
+                let keycapTextSize = (segment.text as NSString).size(withAttributes: keycapTextAttrs)
+                totalWidth += keycapTextSize.width + keycapPaddingH * 2
+            } else {
+                totalWidth += (segment.text as NSString).size(withAttributes: textAttrs).width
+            }
+        }
 
-        // Draw keycap background (centered on text baseline)
-        let keycapRect = NSRect(
-            x: currentX,
-            y: centerY - keycapPaddingV,
-            width: keycapWidth,
-            height: keycapHeight
-        )
-        let keycapPath = NSBezierPath(roundedRect: keycapRect, xRadius: 5, yRadius: 5)
+        var currentX = (bounds.width - totalWidth) / 2
 
-        // Keycap style: dark background with subtle border
-        NSColor.white.withAlphaComponent(0.15).setFill()
-        keycapPath.fill()
-        NSColor.white.withAlphaComponent(0.3).setStroke()
-        keycapPath.lineWidth = 1
-        keycapPath.stroke()
+        for segment in segments {
+            if segment.isKeycap {
+                let keycapTextSize = (segment.text as NSString).size(withAttributes: keycapTextAttrs)
+                let keycapWidth = keycapTextSize.width + keycapPaddingH * 2
+                let keycapHeight = keycapTextSize.height + keycapPaddingV * 2
 
-        // Draw keycap text (vertically centered in keycap)
-        let keycapTextY = keycapRect.minY + (keycapRect.height - keycapTextSize.height) / 2
-        let keycapTextPoint = NSPoint(x: currentX + keycapPaddingH, y: keycapTextY)
-        (keycap as NSString).draw(at: keycapTextPoint, withAttributes: keycapTextAttrs)
-        currentX += keycapWidth
+                let keycapRect = NSRect(
+                    x: currentX,
+                    y: centerY - keycapPaddingV,
+                    width: keycapWidth,
+                    height: keycapHeight
+                )
+                let keycapPath = NSBezierPath(roundedRect: keycapRect, xRadius: 5, yRadius: 5)
 
-        // Draw suffix
-        let suffixPoint = NSPoint(x: currentX, y: centerY)
-        (suffix as NSString).draw(at: suffixPoint, withAttributes: textAttrs)
+                NSColor.white.withAlphaComponent(0.15).setFill()
+                keycapPath.fill()
+                NSColor.white.withAlphaComponent(0.3).setStroke()
+                keycapPath.lineWidth = 1
+                keycapPath.stroke()
+
+                let keycapTextY = keycapRect.minY + (keycapRect.height - keycapTextSize.height) / 2
+                (segment.text as NSString).draw(at: NSPoint(x: currentX + keycapPaddingH, y: keycapTextY), withAttributes: keycapTextAttrs)
+                currentX += keycapWidth
+            } else {
+                (segment.text as NSString).draw(at: NSPoint(x: currentX, y: centerY), withAttributes: textAttrs)
+                currentX += (segment.text as NSString).size(withAttributes: textAttrs).width
+            }
+        }
+    }
+
+    private func keycapSegments(for text: String) -> [(text: String, isKeycap: Bool)] {
+        if let cached = keycapSegmentCache[text] {
+            return cached
+        }
+
+        var segments: [(text: String, isKeycap: Bool)] = []
+        var remaining = text
+        while let openBrace = remaining.range(of: "{") {
+            let prefix = String(remaining[..<openBrace.lowerBound])
+            if !prefix.isEmpty {
+                segments.append((prefix, false))
+            }
+            remaining = String(remaining[openBrace.upperBound...])
+            if let closeBrace = remaining.range(of: "}") {
+                let keycap = String(remaining[..<closeBrace.lowerBound])
+                segments.append((keycap, true))
+                remaining = String(remaining[closeBrace.upperBound...])
+            } else {
+                segments.append(("{\(remaining)", false))
+                remaining = ""
+                break
+            }
+        }
+        if !remaining.isEmpty {
+            segments.append((remaining, false))
+        }
+
+        keycapSegmentCache[text] = segments
+        return segments
     }
 
     private func drawWaitingForAirPods() {
@@ -188,7 +215,7 @@ class CalibrationView: NSView {
             .paragraphStyle: paragraphStyle
         ]
         let titleRect = NSRect(x: 0, y: bounds.midY - 30, width: bounds.width, height: 45)
-        ("Put in your AirPods" as NSString).draw(in: titleRect, withAttributes: titleAttrs)
+        (L("calibration.airpods.putIn") as NSString).draw(in: titleRect, withAttributes: titleAttrs)
 
         // Subtitle
         let subtitleAttrs: [NSAttributedString.Key: Any] = [
@@ -197,29 +224,29 @@ class CalibrationView: NSView {
             .paragraphStyle: paragraphStyle
         ]
         let subtitleRect = NSRect(x: 0, y: bounds.midY - 70, width: bounds.width, height: 30)
-        ("Calibration will begin automatically" as NSString).draw(in: subtitleRect, withAttributes: subtitleAttrs)
+        (L("calibration.airpods.autoBegin") as NSString).draw(in: subtitleRect, withAttributes: subtitleAttrs)
 
-        // Escape hint
-        let escapeAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 14, weight: .regular),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.5),
-            .paragraphStyle: paragraphStyle
-        ]
-        let escapeRect = NSRect(x: 0, y: bounds.midY - 120, width: bounds.width, height: 25)
-        ("Press Escape to cancel" as NSString).draw(in: escapeRect, withAttributes: escapeAttrs)
+        // Escape hint (keycap style)
+        drawLocalizedHintWithKeycap(
+            text: L("calibration.airpods.escToCancel"),
+            centerY: bounds.midY - 120,
+            textColor: NSColor.white.withAlphaComponent(0.5),
+            fontSize: 14
+        )
     }
 }
 
 // MARK: - Calibration Window Controller
 
+@MainActor
 class CalibrationWindowController: NSObject {
     var windows: [NSWindow] = []
     var calibrationViews: [CalibrationView] = []
     var animationTimer: Timer?
     var currentStep = 0
-    var onComplete: (([Any]) -> Void)?
+    var onComplete: (([CalibrationSample]) -> Void)?
     var onCancel: (() -> Void)?
-    var capturedValues: [Any] = []
+    var capturedValues: [CalibrationSample] = []
 
     var localEventMonitor: Any?
     var globalEventMonitor: Any?
@@ -232,6 +259,11 @@ class CalibrationWindowController: NSObject {
 
     // Store the original connection callback to restore later
     var originalConnectionCallback: ((Bool) -> Void)?
+
+    // Activation policy the app had before calibration started. Calibration
+    // forces .accessory because the overlay-above-fullscreen recipe only
+    // behaves reliably when Dorso isn't a .regular app.
+    private var activationPolicyToRestore: NSApplication.ActivationPolicy?
 
     struct CalibrationStep {
         let instruction: String
@@ -257,10 +289,10 @@ class CalibrationWindowController: NSObject {
 
         var name: String {
             switch self {
-            case .topLeft: return "top-left"
-            case .topRight: return "top-right"
-            case .bottomLeft: return "bottom-left"
-            case .bottomRight: return "bottom-right"
+            case .topLeft: return L("calibration.corner.topLeft")
+            case .topRight: return L("calibration.corner.topRight")
+            case .bottomLeft: return L("calibration.corner.bottomLeft")
+            case .bottomRight: return L("calibration.corner.bottomRight")
             }
         }
     }
@@ -274,7 +306,7 @@ class CalibrationWindowController: NSObject {
         for screenIndex in 0..<NSScreen.screens.count {
             for corner in corners {
                 steps.append(CalibrationStep(
-                    instruction: "Look at the \(corner.name) corner",
+                    instruction: L("calibration.lookAtCorner", corner.name),
                     screenIndex: screenIndex,
                     corner: corner
                 ))
@@ -282,12 +314,28 @@ class CalibrationWindowController: NSObject {
         }
     }
 
-    func start(detector: PostureDetector, onComplete: @escaping ([Any]) -> Void, onCancel: @escaping () -> Void) {
+    func start(detector: PostureDetector, onComplete: @escaping ([CalibrationSample]) -> Void, onCancel: @escaping () -> Void) {
+        // Guard against reentrant start() before cleanup() has run: re-capturing
+        // `originalConnectionCallback` would snapshot a previously-wrapped
+        // callback as the "original," and cleanup would then restore the
+        // wrapper permanently.
+        guard windows.isEmpty else { return }
+
         self.detector = detector
         self.onComplete = onComplete
         self.onCancel = onCancel
         self.currentStep = 0
         self.capturedValues = []
+
+        // Force .accessory so calibration windows overlay cleanly above a
+        // fullscreen app on the current Space. Onboarding and Settings both
+        // flip Dorso to .regular, and if we launched calibration while still
+        // .regular the overlay could land behind the fullscreen window.
+        let currentPolicy = NSApp.activationPolicy()
+        if currentPolicy != .accessory {
+            activationPolicyToRestore = currentPolicy
+            NSApp.setActivationPolicy(.accessory)
+        }
 
         buildSteps()
 
@@ -299,7 +347,7 @@ class CalibrationWindowController: NSObject {
                 backing: .buffered,
                 defer: false
             )
-            window.level = .screenSaver + 1
+            window.level = .aboveFullscreen
             window.isOpaque = false
             window.backgroundColor = .clear
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -309,7 +357,6 @@ class CalibrationWindowController: NSObject {
             view.showRing = false  // Hide by default
             window.contentView = view
 
-            window.orderFrontRegardless()
             windows.append(window)
             calibrationViews.append(view)
         }
@@ -334,36 +381,24 @@ class CalibrationWindowController: NSObject {
             }
         }
 
-        if let firstWindow = windows.first {
-            firstWindow.makeKeyAndOrderFront(nil)
-        }
+        // Activate first so subsequent ordering happens while Dorso is frontmost.
         NSApp.activate(ignoringOtherApps: true)
+
+        // Re-asserting .level refreshes the window-server layer; pairing it with
+        // orderFrontRegardless anchors the window on the active Space (including
+        // a fullscreen Space). Make the first window key last, so the key state
+        // doesn't precede the ordering we just set.
+        for window in windows {
+            window.level = .aboveFullscreen
+            window.orderFrontRegardless()
+        }
+        windows.first?.makeKeyAndOrderFront(nil)
 
         // Check if detector needs to wait for connection (e.g., AirPods in ears)
         // Save the original callback to restore later
         originalConnectionCallback = detector.onConnectionStateChange
 
-        if !detector.isConnected {
-            // Show waiting state with lower window level so permission dialogs appear on top
-            isWaitingForConnection = true
-            for window in windows {
-                window.level = .floating  // Lower level allows system dialogs on top
-            }
-            showWaitingForConnection()
-
-            // Subscribe to connection state changes (wrapping the original callback)
-            detector.onConnectionStateChange = { [weak self] isConnected in
-                // Call our handler for calibration
-                if isConnected {
-                    self?.detectorConnected()
-                }
-                // Also call the original callback so AppDelegate stays in sync
-                self?.originalConnectionCallback?(isConnected)
-            }
-        } else {
-            // Already connected and authorized - proceed with calibration
-            updateStep()
-        }
+        checkDetectorAndProceed()
 
         startAnimation()
     }
@@ -379,17 +414,40 @@ class CalibrationWindowController: NSObject {
     func detectorConnected() {
         isWaitingForConnection = false
 
-        // Raise window level back to full screen calibration level
-        for window in windows {
-            window.level = .screenSaver + 1
-        }
         NSApp.activate(ignoringOtherApps: true)
+        for window in windows {
+            window.level = .aboveFullscreen
+            window.orderFrontRegardless()
+        }
 
         for view in calibrationViews {
             view.waitingForAirPods = false  // View still uses this name for the UI state
             view.needsDisplay = true
         }
         updateStep()
+    }
+
+    private func checkDetectorAndProceed() {
+        guard let detector else { return }
+        if !detector.isConnected {
+            isWaitingForConnection = true
+            for window in windows {
+                // Yield to system dialogs (e.g., Bluetooth pairing / "put AirPods
+                // in ear") that open at higher levels. Restored to .aboveFullscreen
+                // once the detector reports connected.
+                window.level = .floating
+            }
+            showWaitingForConnection()
+
+            detector.onConnectionStateChange = { [weak self] isConnected in
+                if isConnected {
+                    self?.detectorConnected()
+                }
+                self?.originalConnectionCallback?(isConnected)
+            }
+        } else {
+            updateStep()
+        }
     }
 
     func updateStep() {
@@ -406,11 +464,11 @@ class CalibrationWindowController: NSObject {
                 view.showRing = true
                 view.targetPosition = step.corner.position(in: view.bounds)
                 view.instructionText = step.instruction
-                view.stepText = "Step \(currentStep + 1) of \(steps.count)"
+                view.stepText = L("calibration.stepOf", currentStep + 1, steps.count)
             } else {
                 view.showRing = false
-                view.instructionText = "Look at the other screen"
-                view.stepText = "Step \(currentStep + 1) of \(steps.count)"
+                view.instructionText = L("calibration.lookOtherScreen")
+                view.stepText = L("calibration.stepOf", currentStep + 1, steps.count)
             }
             view.needsDisplay = true
         }
@@ -421,11 +479,14 @@ class CalibrationWindowController: NSObject {
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 
         animationTimer = Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { [weak self] _ in
-            for view in self?.calibrationViews ?? [] {
-                if !reduceMotion {
-                    view.pulsePhase += 0.08
+            Task { @MainActor in
+                guard let self else { return }
+                for view in self.calibrationViews {
+                    if !reduceMotion {
+                        view.pulsePhase += 0.08
+                    }
+                    view.needsDisplay = true
                 }
-                view.needsDisplay = true
             }
         }
     }
@@ -435,8 +496,8 @@ class CalibrationWindowController: NSObject {
         guard !isWaitingForConnection else { return }
 
         // Get current calibration value from the detector
-        if let value = detector?.getCurrentCalibrationValue() {
-            capturedValues.append(value)
+        if let detector {
+            capturedValues.append(detector.getCurrentCalibrationValue())
         }
 
         currentStep += 1
@@ -476,5 +537,10 @@ class CalibrationWindowController: NSObject {
         }
         windows = []
         calibrationViews = []
+
+        if let policy = activationPolicyToRestore {
+            NSApp.setActivationPolicy(policy)
+            activationPolicyToRestore = nil
+        }
     }
 }

@@ -1,30 +1,32 @@
-# Posturr
+# [Dorso](https://dorso.app/)
 
 **A macOS app that blurs your screen when you slouch.**
 
-Posturr monitors your posture in real-time using either your Mac's camera or AirPods motion sensors. When it detects that you're slouching, it progressively blurs your screen to remind you to sit up straight. Maintain good posture, and the blur clears instantly.
+Dorso monitors your posture in real-time using either your Mac's camera or AirPods motion sensors. When it detects that you're slouching, it progressively blurs your screen to remind you to sit up straight. Maintain good posture, and the blur clears instantly.
 
 [![Download on the App Store](https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1769990400)](https://apps.apple.com/us/app/posturr-posture-monitor/id6758276540?mt=12)
 
-[![Download Latest Release](https://img.shields.io/github/v/release/tldev/posturr?style=for-the-badge&logo=apple&label=Download&color=007AFF)](https://github.com/tldev/posturr/releases/latest)
+[![Download Latest Release](https://img.shields.io/github/v/release/tldev/dorso?style=for-the-badge&logo=apple&label=Download&color=007AFF)](https://github.com/tldev/dorso/releases/latest)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/6Ufy2SnXDW)
 
-**Join our Discord** to share feedback, get help, suggest features, and connect with other Posturr users!
+**Join our Discord** to share feedback, get help, suggest features, and connect with other Dorso users!
 
 <p align="center">
-  <img src="assets/posturr-preview.gif" width="640" alt="Posturr demo: slouching triggers screen blur, good posture keeps it clear">
+  <video src="https://github.com/user-attachments/assets/de02c78b-c6c4-4ddc-9650-320e7267921a" width="640" autoplay loop muted playsinline>
+    Dorso demo: slouching triggers screen blur, good posture keeps it clear
+  </video>
 </p>
 
 ## Screenshots
 
 <p align="center">
-  <img src="assets/posturr_onboarding.jpg" width="320" alt="Onboarding - Choose Tracking Method">
-  <img src="assets/posturr_settings.jpg" width="400" alt="Settings">
+  <img src="assets/dorso_onboarding.png" width="320" alt="Onboarding - Choose Tracking Method">
+  <img src="assets/dorso_settings.png" width="400" alt="Settings">
 </p>
 
 <p align="center">
-  <img src="assets/posturr_menubar.jpg" width="280" alt="Menu Bar">
-  <img src="assets/posturr_analytics.jpg" width="400" alt="Analytics Dashboard">
+  <img src="assets/dorso_menubar.png" width="280" alt="Menu Bar">
+  <img src="assets/dorso_analytics.png" width="400" alt="Analytics Dashboard">
 </p>
 
 ## Features
@@ -44,14 +46,13 @@ Posturr monitors your posture in real-time using either your Mac's camera or Air
 ### Homebrew (Recommended)
 
 ```bash
-brew tap tldev/tap
-brew install --cask posturr
+brew install dorso
 ```
 
 ### Manual Download
 
-1. Download the latest `Posturr-vX.X.X.dmg` or `.zip` from the [Releases](../../releases) page
-2. Open the DMG and drag `Posturr.app` to your Applications folder
+1. Download the latest `Dorso-vX.X.X.dmg` or `.zip` from the [Releases](../../releases) page
+2. Open the DMG and drag `Dorso.app` to your Applications folder
 3. Launch normally - no Gatekeeper warnings (app is signed and notarized)
 
 ### Permissions
@@ -64,7 +65,7 @@ If you accidentally denied permission, you can grant it later in **System Settin
 
 ## Usage
 
-Once launched, Posturr appears in your menu bar with a person icon. The app continuously monitors your posture and applies screen blur when slouching is detected.
+Once launched, Dorso appears in your menu bar with a person icon. The app continuously monitors your posture and applies screen blur when slouching is detected.
 
 ### Menu Bar Controls
 
@@ -96,7 +97,7 @@ The Settings window (accessible from the menu bar) provides:
 
 ## How It Works
 
-Posturr offers two tracking methods:
+Dorso offers two tracking methods:
 
 ### Camera Mode
 Uses Apple's Vision framework to detect body pose landmarks:
@@ -122,12 +123,12 @@ The screen blur uses macOS's private CoreGraphics API by default for efficient, 
 ### Build
 
 ```bash
-git clone https://github.com/tldev/posturr.git
-cd posturr
+git clone https://github.com/tldev/dorso.git
+cd dorso
 ./build.sh
 ```
 
-The built app will be in `build/Posturr.app`.
+The built app will be in `build/Dorso.app`.
 
 ### Build Options
 
@@ -147,7 +148,7 @@ swiftc -O \
     -framework AVFoundation \
     -framework Vision \
     -framework CoreImage \
-    -o Posturr \
+    -o Dorso \
     Sources/*.swift
 ```
 
@@ -158,7 +159,7 @@ swiftc -O \
 
 ## Command Interface
 
-Posturr exposes a file-based command interface for external control:
+Dorso exposes a file-based command interface for external control:
 
 | Command | Description |
 |---------|-------------|
@@ -166,7 +167,7 @@ Posturr exposes a file-based command interface for external control:
 | `blur <0-64>` | Set blur level manually |
 | `quit` | Exit the application |
 
-Write commands to `/tmp/posturr-command`. Responses appear in `/tmp/posturr-response`.
+Write commands to `/tmp/dorso-command`. Responses appear in `/tmp/dorso-response`.
 
 ## System Requirements
 
@@ -176,7 +177,7 @@ Write commands to `/tmp/posturr-command`. Responses appear in `/tmp/posturr-resp
 
 ## Privacy
 
-Posturr processes all video data locally on your Mac. No images or data are ever sent to external servers. The camera feed is used solely for posture detection and is never stored or transmitted.
+Dorso processes all video data locally on your Mac. No images or data are ever sent to external servers. The camera feed is used solely for posture detection and is never stored or transmitted.
 
 ## License
 
@@ -185,7 +186,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Project Structure
 
 ```
-posturr/
+dorso/
 ├── Sources/
 │   ├── main.swift                  # App entry point
 │   ├── AppDelegate.swift           # Main app coordinator and state machine
@@ -217,7 +218,7 @@ Contributions are welcome! Please feel free to submit issues and pull requests.
 
 ## Linux version
 
-Want this on Linux? See [postured](https://github.com/vadi2/postured).
+Want this on Linux? See [postured](https://github.com/vadi2/postured) or [dorso-linux](https://github.com/Gheop/dorso-linux).
 
 ### Contributors
 
@@ -230,3 +231,10 @@ Want this on Linux? See [postured](https://github.com/vadi2/postured).
 - [@javabudd](https://github.com/javabudd) - Analytics dashboard
 - [@danielroek](https://github.com/danielroek) - "None" warning style option
 - [@claaslange](https://github.com/claaslange) - Camera compatibility issue with professional cameras
+- [@lucapericlp](https://github.com/lucapericlp) - Settings profiles feature
+- [@DengNaichen](https://github.com/DengNaichen) - Sleep/wake camera detection fix
+- [@Shadow1363](https://github.com/Shadow1363) - Camera-active-while-disabled bug report and reproduction details
+- [@bradystroud](https://github.com/bradystroud) - Automatic source switching feature suggestion
+- [@emmanuelprecieuxargent](https://github.com/emmanuelprecieuxargent) - Improved French and Spanish translations
+- [@shencangsheng](https://github.com/shencangsheng) - AirPods 4 compatibility detection report
+- [@zhouyeyu](https://github.com/zhouyeyu) - Initial fix for warning overlays and calibration over fullscreen apps

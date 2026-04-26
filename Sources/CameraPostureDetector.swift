@@ -3,16 +3,45 @@ import AVFoundation
 import Vision
 import os.log
 
-private let log = OSLog(subsystem: "com.posturr", category: "CameraDetector")
+private let log = OSLog(subsystem: "com.thelazydeveloper.dorso", category: "CameraDetector")
 
 /// Camera-based posture detection using Vision framework
 class CameraPostureDetector: NSObject, PostureDetector {
+    private enum LifecycleState {
+        case stopped
+        case starting
+        case running
+    }
+
+    struct Runtime {
+        var authorizationStatus: () -> AVAuthorizationStatus
+        var requestAccess: (@escaping (Bool) -> Void) -> Void
+        var customSessionFactory: (() -> AVCaptureSession)?
+        var startRunning: (AVCaptureSession, @escaping (Bool) -> Void) -> Void
+        var stopRunning: (AVCaptureSession) -> Void
+
+        static let live = Runtime(
+            authorizationStatus: { AVCaptureDevice.authorizationStatus(for: .video) },
+            requestAccess: { completion in
+                AVCaptureDevice.requestAccess(for: .video, completionHandler: completion)
+            },
+            customSessionFactory: nil,
+            startRunning: { session, completion in
+                session.startRunning()
+                completion(session.isRunning)
+            },
+            stopRunning: { session in
+                session.stopRunning()
+            }
+        )
+    }
+
     // MARK: - PostureDetector Protocol
 
     let trackingSource: TrackingSource = .camera
 
     var isAvailable: Bool {
-        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        let status = cameraAuthorizationStatus()
         return status == .authorized || status == .notDetermined
     }
 
@@ -30,11 +59,20 @@ class CameraPostureDetector: NSObject, PostureDetector {
 
     /// Camera authorization is handled in start() - this is a no-op
     func requestAuthorization(completion: @escaping (Bool) -> Void) {
-        completion(true)
+        switch cameraAuthorizationStatus() {
+        case .authorized:
+            completion(true)
+        case .notDetermined:
+            requestCameraAccess { granted in
+                completion(granted)
+            }
+        default:
+            completion(false)
+        }
     }
 
     var unavailableReason: String? {
-        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        let status = cameraAuthorizationStatus()
         switch status {
         case .denied:
             return "Camera access denied. Enable in System Settings > Privacy & Security > Camera."
@@ -49,16 +87,29 @@ class CameraPostureDetector: NSObject, PostureDetector {
     }
 
     var onPostureReading: ((PostureReading) -> Void)?
-    var onCalibrationUpdate: ((Any) -> Void)?
+    var onCalibrationUpdate: ((CalibrationSample) -> Void)?
 
     // MARK: - Camera State
 
     private var captureSession: AVCaptureSession?
     private var videoOutput: AVCaptureVideoDataOutput?
-    private let captureQueue = DispatchQueue(label: "posturr.camera.capture")
+    private let captureQueue = DispatchQueue(label: "dorso.camera.capture")
+    private let sessionQueue = DispatchQueue(label: "dorso.camera.session")
+    private let runtime: Runtime
 
     var selectedCameraID: String?
     private var isMonitoring = false
+    private var lifecycleState: LifecycleState = .stopped
+
+    override init() {
+        self.runtime = .live
+        super.init()
+    }
+
+    init(runtime: Runtime) {
+        self.runtime = runtime
+        super.init()
+    }
 
     // MARK: - Calibration State
 
@@ -89,11 +140,36 @@ class CameraPostureDetector: NSObject, PostureDetector {
     private var consecutiveNoDetectionFrames = 0
     private let awayFrameThreshold = 15
     var onAwayStateChange: ((Bool) -> Void)?
+    private var isAway = false
+
+    private func cameraAuthorizationStatus() -> AVAuthorizationStatus {
+        runtime.authorizationStatus()
+    }
+
+    private func requestCameraAccess(_ completion: @escaping (Bool) -> Void) {
+        runtime.requestAccess(completion)
+    }
+
+    private func startRunningSession(_ session: AVCaptureSession, completion: @escaping (Bool) -> Void) {
+        runtime.startRunning(session, completion)
+    }
+
+    private func stopRunningSession(_ session: AVCaptureSession) {
+        runtime.stopRunning(session)
+    }
 
     // MARK: - Lifecycle
 
     func start(completion: @escaping (Bool, String?) -> Void) {
-        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        // Idempotent start (prevents double-start during calibration/state transitions)
+        if lifecycleState != .stopped {
+            completion(true, nil)
+            return
+        }
+
+        lifecycleState = .starting
+
+        let status = cameraAuthorizationStatus()
 
         switch status {
         case .authorized:
@@ -102,55 +178,81 @@ class CameraPostureDetector: NSObject, PostureDetector {
             completion(true, nil)
 
         case .notDetermined:
-            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+            requestCameraAccess { [weak self] granted in
                 DispatchQueue.main.async {
+                    guard let self else { return }
+
+                    // Start request was cancelled while waiting for permission.
+                    guard self.lifecycleState == .starting else {
+                        completion(true, nil)
+                        return
+                    }
+
                     if granted {
-                        self?.setupCamera()
-                        self?.startSession()
+                        self.setupCamera()
+                        self.startSession()
                         completion(true, nil)
                     } else {
+                        self.lifecycleState = .stopped
+                        self.isActive = false
                         completion(false, "Camera access denied")
                     }
                 }
             }
 
         case .denied:
+            lifecycleState = .stopped
+            isActive = false
             completion(false, "Camera access denied. Enable in System Settings > Privacy & Security > Camera.")
 
         case .restricted:
+            lifecycleState = .stopped
+            isActive = false
             completion(false, "Camera access is restricted on this device.")
 
         @unknown default:
+            lifecycleState = .stopped
+            isActive = false
             completion(false, "Unknown camera authorization status")
         }
     }
 
     func stop() {
         os_log(.info, log: log, "Stopping camera capture")
-        captureSession?.stopRunning()
+
+        let session = captureSession
+        videoOutput?.setSampleBufferDelegate(nil, queue: nil)
+        captureSession = nil
+        videoOutput = nil
+
+        sessionQueue.async {
+            guard let session else { return }
+            self.stopRunningSession(session)
+        }
+
+        lifecycleState = .stopped
         isActive = false
         isMonitoring = false
+        consecutiveNoDetectionFrames = 0
+        isAway = false
     }
 
     // MARK: - Calibration
 
-    func getCurrentCalibrationValue() -> Any {
-        if currentFaceWidth > 0 {
-            return CalibrationPoint(noseY: currentNoseY, faceWidth: currentFaceWidth)
-        }
-        return currentNoseY
+    func getCurrentCalibrationValue() -> CalibrationSample {
+        let faceWidth: CGFloat? = currentFaceWidth > 0 ? currentFaceWidth : nil
+        return .camera(CameraCalibrationSample(noseY: currentNoseY, faceWidth: faceWidth))
     }
 
-    func createCalibrationData(from points: [Any]) -> CalibrationData? {
+    func createCalibrationData(from samples: [CalibrationSample]) -> CalibrationData? {
         var yValues: [CGFloat] = []
         var widthValues: [CGFloat] = []
 
-        for point in points {
-            if let calibrationPoint = point as? CalibrationPoint {
-                yValues.append(calibrationPoint.noseY)
-                widthValues.append(calibrationPoint.faceWidth)
-            } else if let y = point as? CGFloat {
-                yValues.append(y)
+        for sample in samples {
+            guard case .camera(let cameraSample) = sample else { continue }
+            yValues.append(cameraSample.noseY)
+            if let faceWidth = cameraSample.faceWidth {
+                widthValues.append(faceWidth)
             }
         }
 
@@ -190,6 +292,8 @@ class CameraPostureDetector: NSObject, PostureDetector {
         self.isMonitoring = true
         self.isCurrentlySlouching = false
         self.noseYHistory.removeAll()
+        self.consecutiveNoDetectionFrames = 0
+        self.isAway = false
 
         os_log(.info, log: log, "Started monitoring with intensity=%.2f, deadZone=%.2f", intensity, deadZone)
     }
@@ -211,6 +315,11 @@ class CameraPostureDetector: NSObject, PostureDetector {
     }
 
     private func setupCamera() {
+        if let sessionFactory = runtime.customSessionFactory {
+            captureSession = sessionFactory()
+            return
+        }
+
         captureSession = AVCaptureSession()
 
         // Use vga640x480 instead of cif352x288 for better compatibility with professional cameras
@@ -272,11 +381,42 @@ class CameraPostureDetector: NSObject, PostureDetector {
     }
 
     private func startSession() {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.captureSession?.startRunning()
-            DispatchQueue.main.async {
-                self?.isActive = true
-                os_log(.info, log: log, "Camera session started")
+        guard let session = captureSession else {
+            isActive = false
+            lifecycleState = .stopped
+            os_log(.error, log: log, "Camera session missing during start")
+            return
+        }
+
+        sessionQueue.async { [weak self, session] in
+            guard let self else { return }
+
+            let shouldProceed = DispatchQueue.main.sync {
+                self.lifecycleState == .starting && self.captureSession === session
+            }
+            guard shouldProceed else { return }
+
+            self.startRunningSession(session) { didStart in
+                DispatchQueue.main.async {
+                    // If a stop/new start happened while startRunning was in flight,
+                    // shut down this stale session and ignore its result.
+                    guard self.lifecycleState == .starting, self.captureSession === session else {
+                        if didStart {
+                            self.sessionQueue.async {
+                                self.stopRunningSession(session)
+                            }
+                        }
+                        return
+                    }
+
+                    self.isActive = didStart
+                    self.lifecycleState = didStart ? .running : .stopped
+                    if didStart {
+                        os_log(.info, log: log, "Camera session started")
+                    } else {
+                        os_log(.error, log: log, "Camera session failed to start")
+                    }
+                }
             }
         }
     }
@@ -284,39 +424,39 @@ class CameraPostureDetector: NSObject, PostureDetector {
     func switchCamera(to cameraID: String) {
         guard let session = captureSession else { return }
 
-        let wasRunning = session.isRunning
+        sessionQueue.async {
+            let wasRunning = session.isRunning
 
-        if wasRunning {
-            session.stopRunning()
-        }
-
-        session.beginConfiguration()
-
-        // Remove existing inputs
-        for input in session.inputs {
-            session.removeInput(input)
-        }
-
-        let cameras = getAvailableCameras()
-        guard let camera = cameras.first(where: { $0.uniqueID == cameraID }),
-              let input = try? AVCaptureDeviceInput(device: camera) else {
-            session.commitConfiguration()
-            os_log(.error, log: log, "Failed to switch to camera: %{public}@", cameraID)
-            return
-        }
-
-        selectedCameraID = cameraID
-        session.addInput(input)
-
-        session.commitConfiguration()
-
-        if wasRunning {
-            DispatchQueue.global(qos: .userInitiated).async {
-                session.startRunning()
+            if wasRunning {
+                self.stopRunningSession(session)
             }
-        }
 
-        os_log(.info, log: log, "Switched to camera: %{public}@", camera.localizedName)
+            session.beginConfiguration()
+
+            // Remove existing inputs
+            for input in session.inputs {
+                session.removeInput(input)
+            }
+
+            let cameras = self.getAvailableCameras()
+            guard let camera = cameras.first(where: { $0.uniqueID == cameraID }),
+                  let input = try? AVCaptureDeviceInput(device: camera) else {
+                session.commitConfiguration()
+                os_log(.error, log: log, "Failed to switch to camera: %{public}@", cameraID)
+                return
+            }
+
+            self.selectedCameraID = cameraID
+            session.addInput(input)
+
+            session.commitConfiguration()
+
+            if wasRunning {
+                self.startRunningSession(session) { _ in }
+            }
+
+            os_log(.info, log: log, "Switched to camera: %{public}@", camera.localizedName)
+        }
     }
 
     // MARK: - Frame Processing
@@ -370,14 +510,11 @@ class CameraPostureDetector: NSObject, PostureDetector {
         }
 
         // Send calibration update
-        if let width = faceWidth {
-            onCalibrationUpdate?(CalibrationPoint(noseY: noseY, faceWidth: width))
-        } else {
-            onCalibrationUpdate?(noseY)
-        }
+        onCalibrationUpdate?(.camera(CameraCalibrationSample(noseY: noseY, faceWidth: faceWidth)))
 
-        // Reset away state
-        if blurWhenAway {
+        // Reset away state only on transitions
+        if blurWhenAway, isAway {
+            isAway = false
             onAwayStateChange?(false)
         }
 
@@ -392,7 +529,8 @@ class CameraPostureDetector: NSObject, PostureDetector {
 
         consecutiveNoDetectionFrames += 1
 
-        if consecutiveNoDetectionFrames >= awayFrameThreshold {
+        if consecutiveNoDetectionFrames >= awayFrameThreshold, !isAway {
+            isAway = true
             onAwayStateChange?(true)
         }
     }
@@ -479,6 +617,8 @@ extension CameraPostureDetector: AVCaptureVideoDataOutputSampleBufferDelegate {
         guard now.timeIntervalSince(lastFrameTime) >= frameInterval else { return }
         lastFrameTime = now
 
-        processFrame(pixelBuffer)
+        autoreleasepool {
+            processFrame(pixelBuffer)
+        }
     }
 }

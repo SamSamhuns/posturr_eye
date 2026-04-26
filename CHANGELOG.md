@@ -1,9 +1,139 @@
 # Changelog
 
-All notable changes to Posturr will be documented in this file.
+All notable changes to Dorso will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.11.2] - 2026-04-24
+
+### Fixed
+- Warning overlays (blur/glow/border/solid) and the calibration window now render over fullscreen apps on any monitor — previously they were hidden behind a fullscreen window on the Space where the fullscreen app lived
+
+### Acknowledgments
+- Thanks to [@zhouyeyu](https://github.com/zhouyeyu) for the initial fix ([#70](https://github.com/tldev/dorso/issues/70), [#88](https://github.com/tldev/dorso/pull/88))
+
+## [1.11.1] - 2026-03-16
+
+### Added
+- Added a new Support menu item in the menu bar with a small support window linking to Buy Me a Coffee
+
+### Fixed
+- Kept Dorso in regular app mode while other app windows are still open when closing the new support window or Settings
+
+## [1.11.0] - 2026-03-13
+
+### Added
+- AirPods 4 with ANC support — now correctly detected as compatible using Bluetooth hardware product IDs instead of device name matching
+
+### Fixed
+- AirPods 4 with ANC no longer shows "No motion sensors" in the device list
+
+### Acknowledgments
+- Thanks to [@shencangsheng](https://github.com/shencangsheng) for reporting the AirPods 4 detection issue (#74)
+
+## [1.10.4] - 2026-03-04
+
+### Fixed
+- Fixed crash on launch on machines without the development build environment — SwiftPM's resource bundle accessor couldn't find localization files in distributed builds (latent since v1.10.0)
+
+## [1.10.3] - 2026-03-04
+
+### Fixed
+- AirPods motion detection now works reliably after approving the motion permission dialog — previously the reused motion manager failed to reconnect to AirPods already in ears
+
+## [1.10.2] - 2026-03-04
+
+### Fixed
+- AirPods calibration now starts immediately after approving motion permission, even if AirPods aren't in ears yet
+
+## [1.10.1] - 2026-03-03
+
+### Fixed
+- AirPods calibration no longer starts without AirPods in ears — previously having AirPods paired was enough to begin calibration during onboarding
+
+## [1.10.0] - 2026-03-03
+
+### Added
+- Automatic tracking mode — Dorso intelligently switches between Camera and AirPods based on availability, using your preferred source when possible
+- New tracking settings UI showing device status, calibration state, and active source at a glance
+
+### Changed
+- Migrated core tracking logic to The Composable Architecture (TCA) for more predictable state management and comprehensive test coverage
+
+### Fixed
+- Improved French and Spanish translations for more natural phrasing
+
+### Acknowledgments
+- Thanks to [@bradystroud](https://github.com/bradystroud) for suggesting automatic source switching in [#66](https://github.com/tldev/dorso/issues/66)
+- Thanks to [@emmanuelprecieuxargent](https://github.com/emmanuelprecieuxargent) for improving French ([#71](https://github.com/tldev/dorso/pull/71)) and Spanish ([#73](https://github.com/tldev/dorso/pull/73)) translations
+
+## [1.9.2] - 2026-02-22
+
+### Fixed
+- Fixed a race where rapidly toggling Enabled could leave the camera running while Dorso was disabled.
+- Added regression test coverage to ensure the camera session and app enabled state stay in sync.
+
+### Acknowledgments
+- Thanks to [@Shadow1363](https://github.com/Shadow1363) for reporting and isolating this issue in [#68](https://github.com/tldev/dorso/issues/68)
+
+## [1.9.1] - 2026-02-20
+
+### Fixed
+- Analytics data now migrates on launch from legacy `Posturr/analytics.json` into `Dorso/analytics.json` after rebrand updates.
+- Legacy and current analytics are merged per day so cumulative monitoring time, slouch duration, and slouch events are preserved.
+- Legacy analytics files are retained after migration for safety.
+
+## [1.9.0] - 2026-02-16
+
+### Changed
+- Rebranded from Posturr to Dorso — new name, same app. All settings and data carry over automatically.
+
+### Fixed
+- Camera detection now reliably resumes after screen sleep, screen saver, or screen lock
+- Camera session startup now verifies the session is actually running and logs errors on failure
+
+### Acknowledgments
+- Thanks to [@DengNaichen](https://github.com/DengNaichen) for fixing the sleep/wake detection issue in [PR #63](https://github.com/tldev/dorso/pull/63)
+
+## [1.8.2] - 2026-02-12
+
+### Changed
+- Renamed "Vignette" warning mode to "Glow" for clarity
+
+### Fixed
+- Blur overlay now clears properly when disabling Posturr while away from Mac
+
+### Added
+- Updated app icon with a cleaner look
+- Marketing mode for App Store screenshot capture
+
+## [1.8.1] - 2026-02-06
+
+### Fixed
+- Calibration window appearing before camera permission was granted on fresh installs
+
+## [1.8.0] - 2026-02-05
+
+### Added
+- Localization support for 6 languages: English, Spanish, French, German, Japanese, and Simplified Chinese
+- Locale-aware duration and percentage formatting
+- Localized system permission prompts (camera, motion, Bluetooth)
+- Debug logging for missing localization keys
+
+### Changed
+- Improved calibration screen keycap text rendering with caching and malformed-input handling
+
+## [1.7.2] - 2026-02-05
+
+### Fixed
+- More accurate posture analytics — time tracking now uses actual elapsed time between readings instead of assumed intervals
+
+### Changed
+- Improved type safety throughout the calibration pipeline
+- Better thread safety with proper main-thread isolation
+- Defensive input handling in the posture engine
+- Added comprehensive test coverage for analytics, calibration, settings profiles, and display monitoring
 
 ## [1.7.1] - 2026-02-04
 
@@ -148,7 +278,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Camera hardware frame rate is now configured directly (not just software throttling)
 
 ### Acknowledgments
-- Thanks to [@cam-br0wn](https://github.com/cam-br0wn) for the original idea in [PR #24](https://github.com/tldev/posturr/pull/24)!
+- Thanks to [@cam-br0wn](https://github.com/cam-br0wn) for the original idea in [PR #24](https://github.com/tldev/dorso/pull/24)!
 
 ## [1.4.6] - 2026-01-29
 

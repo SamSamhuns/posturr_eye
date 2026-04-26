@@ -1,28 +1,37 @@
 #!/bin/bash
 
-# Posturr Build Script
+# Dorso Build Script
 # Compiles the app and creates the app bundle
 #
 # Usage:
 #   ./build.sh              # Build with private APIs (GitHub release)
 #   ./build.sh --appstore   # Build for App Store (no private APIs)
 #   ./build.sh --release    # Build with private APIs and create release archive
+#   ./build.sh --dev        # Fast iteration: debug config, host arch only (no universal)
 
 set -e
 
 # Configuration
-APP_NAME="Posturr"
+APP_NAME="Dorso"
 BUNDLE_ID="com.thelazydeveloper.posturr"
-VERSION="1.7.1"
+VERSION="1.11.2"
+BUILD_NUMBER="9"
 MIN_MACOS="13.0"
 
 # Check for App Store build flag
 APP_STORE_BUILD=false
-SWIFT_FLAGS=""
+DEV_BUILD=false
+BUILD_CONFIG="release"
+SWIFT_BUILD_FLAGS=()
 if [[ "$*" == *"--appstore"* ]]; then
     APP_STORE_BUILD=true
-    SWIFT_FLAGS="-D APP_STORE"
+    SWIFT_BUILD_FLAGS=(-Xswiftc -D -Xswiftc APP_STORE)
     echo "Building for App Store (no private APIs)..."
+fi
+if [[ "$*" == *"--dev"* ]]; then
+    DEV_BUILD=true
+    BUILD_CONFIG="debug"
+    echo "Dev build: debug config, host arch only..."
 fi
 
 # Directories
@@ -54,8 +63,12 @@ mkdir -p "$MACOS_DIR"
 mkdir -p "$RESOURCES_DIR"
 
 # Compile Swift code
-echo "Compiling Swift sources..."
-echo "Building universal binary (arm64 + x86_64)..."
+echo "Compiling Swift sources with SwiftPM..."
+if [ "$DEV_BUILD" = true ]; then
+    echo "Building $BUILD_CONFIG binary ($(uname -m) only)..."
+else
+    echo "Building universal binary (arm64 + x86_64)..."
+fi
 
 # Get all Swift source files
 SOURCES_DIR="$SCRIPT_DIR/Sources"
@@ -67,43 +80,40 @@ for f in $SWIFT_FILES; do
 done
 echo ""
 
-swiftc \
-    -O \
-    -whole-module-optimization \
-    $SWIFT_FLAGS \
-    -target arm64-apple-macos$MIN_MACOS \
-    -sdk $(xcrun --show-sdk-path) \
-    -framework AppKit \
-    -framework AVFoundation \
-    -framework Vision \
-    -framework CoreImage \
-    -framework CoreMotion \
-    -framework IOBluetooth \
-    -o "$MACOS_DIR/${APP_NAME}_arm64" \
-    $SWIFT_FILES
+if [ "$DEV_BUILD" = true ]; then
+    HOST_ARCH="$(uname -m)"
+    swift build -c "$BUILD_CONFIG" --arch "$HOST_ARCH" --product Dorso "${SWIFT_BUILD_FLAGS[@]}"
+    DEV_BINARY="$SCRIPT_DIR/.build/${HOST_ARCH}-apple-macosx/${BUILD_CONFIG}/Dorso"
+    if [ ! -f "$DEV_BINARY" ]; then
+        echo -e "${RED}Error: Expected SwiftPM binary not found at $DEV_BINARY${NC}"
+        exit 1
+    fi
+    cp "$DEV_BINARY" "$MACOS_DIR/$APP_NAME"
+else
+    swift build -c release --arch arm64 --product Dorso "${SWIFT_BUILD_FLAGS[@]}"
+    swift build -c release --arch x86_64 --product Dorso "${SWIFT_BUILD_FLAGS[@]}"
 
-swiftc \
-    -O \
-    -whole-module-optimization \
-    $SWIFT_FLAGS \
-    -target x86_64-apple-macos$MIN_MACOS \
-    -sdk $(xcrun --show-sdk-path) \
-    -framework AppKit \
-    -framework AVFoundation \
-    -framework Vision \
-    -framework CoreImage \
-    -framework CoreMotion \
-    -framework IOBluetooth \
-    -o "$MACOS_DIR/${APP_NAME}_x86" \
-    $SWIFT_FILES
+    ARM64_BINARY="$SCRIPT_DIR/.build/arm64-apple-macosx/release/Dorso"
+    X86_BINARY="$SCRIPT_DIR/.build/x86_64-apple-macosx/release/Dorso"
 
-# Create universal binary
-lipo -create -output "$MACOS_DIR/$APP_NAME" \
-    "$MACOS_DIR/${APP_NAME}_arm64" \
-    "$MACOS_DIR/${APP_NAME}_x86"
+    if [ ! -f "$ARM64_BINARY" ] || [ ! -f "$X86_BINARY" ]; then
+        echo -e "${RED}Error: Expected SwiftPM binaries not found.${NC}"
+        echo "  arm64: $ARM64_BINARY"
+        echo "  x86_64: $X86_BINARY"
+        exit 1
+    fi
 
-# Clean up
-rm "$MACOS_DIR/${APP_NAME}_arm64" "$MACOS_DIR/${APP_NAME}_x86"
+    cp "$ARM64_BINARY" "$MACOS_DIR/${APP_NAME}_arm64"
+    cp "$X86_BINARY" "$MACOS_DIR/${APP_NAME}_x86"
+
+    # Create universal binary
+    lipo -create -output "$MACOS_DIR/$APP_NAME" \
+        "$MACOS_DIR/${APP_NAME}_arm64" \
+        "$MACOS_DIR/${APP_NAME}_x86"
+
+    # Clean up
+    rm "$MACOS_DIR/${APP_NAME}_arm64" "$MACOS_DIR/${APP_NAME}_x86"
+fi
 
 # Create Info.plist
 echo "Creating Info.plist..."
@@ -121,7 +131,7 @@ cat > "$CONTENTS/Info.plist" << EOF
     <key>CFBundleDisplayName</key>
     <string>$APP_NAME</string>
     <key>CFBundleVersion</key>
-    <string>$VERSION</string>
+    <string>$BUILD_NUMBER</string>
     <key>CFBundleShortVersionString</key>
     <string>$VERSION</string>
     <key>CFBundlePackageType</key>
@@ -133,26 +143,50 @@ cat > "$CONTENTS/Info.plist" << EOF
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.healthcare-fitness</string>
     <key>NSCameraUsageDescription</key>
-    <string>Posturr needs camera access to monitor your posture and blur the screen when you slouch.</string>
+    <string>Dorso needs camera access to monitor your posture and blur the screen when you slouch.</string>
     <key>NSMotionUsageDescription</key>
-    <string>Posturr needs access to motion data to monitor your posture using AirPods.</string>
+    <string>Dorso needs access to motion data to monitor your posture using AirPods.</string>
     <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>Posturr uses Bluetooth to detect paired AirPods for head motion tracking.</string>
+    <string>Dorso uses Bluetooth to detect paired AirPods for head motion tracking.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>es</string>
+        <string>fr</string>
+        <string>de</string>
+        <string>ja</string>
+        <string>zh-Hans</string>
+    </array>
 </dict>
 </plist>
 EOF
 
-# Copy icon if it exists
-if [ -f "$SCRIPT_DIR/AppIcon.icns" ]; then
+# Compile app icon
+# Priority: .icon file (Icon Composer) > .icns file > .iconset folder
+if [ -f "$SCRIPT_DIR/AppIcon.icon/icon.json" ]; then
+    echo "Compiling Icon Composer icon..."
+    xcrun actool "$SCRIPT_DIR/AppIcon.icon" \
+        --compile "$RESOURCES_DIR" \
+        --app-icon AppIcon \
+        --platform macosx \
+        --minimum-deployment-target 13.0 \
+        --include-all-app-icons \
+        --output-partial-info-plist /dev/null \
+        --output-format human-readable-text > /dev/null 2>&1
+elif [ -f "$SCRIPT_DIR/AppIcon.icns" ]; then
     echo "Copying app icon..."
     cp "$SCRIPT_DIR/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
-elif [ -d "$SCRIPT_DIR/Posturr.iconset" ]; then
+elif [ -d "$SCRIPT_DIR/Dorso.iconset" ]; then
     echo "Converting iconset to icns..."
-    iconutil -c icns -o "$RESOURCES_DIR/AppIcon.icns" "$SCRIPT_DIR/Posturr.iconset"
+    iconutil -c icns -o "$RESOURCES_DIR/AppIcon.icns" "$SCRIPT_DIR/Dorso.iconset"
 else
     echo -e "${YELLOW}Warning: No app icon found. The app will use default icon.${NC}"
 fi
@@ -164,11 +198,35 @@ if [ -d "$SOURCES_DIR/Icons" ]; then
     cp "$SOURCES_DIR/Icons"/*.pdf "$RESOURCES_DIR/Icons/" 2>/dev/null || true
 fi
 
+# Copy localization resources
+if [ -d "$SOURCES_DIR/Resources" ]; then
+    echo "Copying localization resources..."
+    for lproj in "$SOURCES_DIR/Resources"/*.lproj; do
+        if [ -d "$lproj" ]; then
+            cp -r "$lproj" "$RESOURCES_DIR/"
+        fi
+    done
+fi
+
+# Embed provisioning profile for App Store builds
+if [ "$APP_STORE_BUILD" = true ]; then
+    PROFILE_PATH="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/ee9bedd9-b6fa-4db7-b698-21a632a945e9.provisionprofile"
+    if [ -f "$PROFILE_PATH" ]; then
+        echo "Embedding provisioning profile..."
+        cp "$PROFILE_PATH" "$CONTENTS/embedded.provisionprofile"
+    else
+        echo -e "${RED}Error: App Store provisioning profile not found at:${NC}"
+        echo "  $PROFILE_PATH"
+        echo "Download it from the Apple Developer portal."
+        exit 1
+    fi
+fi
+
 # Create entitlements file
 echo "Creating entitlements..."
 if [ "$APP_STORE_BUILD" = true ]; then
     # App Store entitlements (requires App Sandbox)
-    cat > "$BUILD_DIR/Posturr.entitlements" << EOF
+    cat > "$BUILD_DIR/Dorso.entitlements" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -177,12 +235,18 @@ if [ "$APP_STORE_BUILD" = true ]; then
     <true/>
     <key>com.apple.security.device.camera</key>
     <true/>
+    <key>com.apple.security.device.bluetooth</key>
+    <true/>
+    <key>com.apple.application-identifier</key>
+    <string>KBF2YGT2KP.$BUNDLE_ID</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>KBF2YGT2KP</string>
 </dict>
 </plist>
 EOF
 else
     # Direct distribution entitlements (hardened runtime, no sandbox)
-    cat > "$BUILD_DIR/Posturr.entitlements" << EOF
+    cat > "$BUILD_DIR/Dorso.entitlements" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">

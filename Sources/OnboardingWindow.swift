@@ -4,18 +4,22 @@ import AVFoundation
 
 // MARK: - Onboarding Window Controller
 
+@MainActor
 class OnboardingWindowController: NSObject, NSWindowDelegate {
     var window: NSWindow?
     var onComplete: ((TrackingSource, String?) -> Void)?
+    weak var appDelegate: AppDelegate?
 
     private var cameraDetector: CameraPostureDetector?
     private var airPodsDetector: AirPodsPostureDetector?
 
     func show(
+        appDelegate: AppDelegate,
         cameraDetector: CameraPostureDetector,
         airPodsDetector: AirPodsPostureDetector,
         onComplete: @escaping (TrackingSource, String?) -> Void
     ) {
+        self.appDelegate = appDelegate
         self.cameraDetector = cameraDetector
         self.airPodsDetector = airPodsDetector
         self.onComplete = onComplete
@@ -33,15 +37,15 @@ class OnboardingWindowController: NSObject, NSWindowDelegate {
         )
 
         let hostingController = NSHostingController(rootView: onboardingView)
-        let fittingSize = hostingController.sizeThatFits(in: CGSize(width: 500, height: 600))
+        hostingController.sizingOptions = .preferredContentSize
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: fittingSize.width, height: fittingSize.height),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 100),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
-        window.title = "Welcome to Posturr"
+        window.title = L("onboarding.title")
         window.contentViewController = hostingController
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -54,6 +58,9 @@ class OnboardingWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        if let window = notification.object as? NSWindow {
+            appDelegate?.restoreAccessoryActivationPolicyIfNeeded(excluding: window)
+        }
         // If closed without selection, default to camera
         if let onComplete = onComplete {
             onComplete(.camera, cameraDetector?.selectedCameraID)
@@ -85,10 +92,10 @@ struct OnboardingView: View {
                         .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 2)
                 }
 
-                Text("Welcome to Posturr")
+                Text(L("onboarding.title"))
                     .font(.system(size: 24, weight: .semibold))
 
-                Text("Choose how you want to track your posture")
+                Text(L("onboarding.subtitle"))
                     .font(.system(size: 14))
                     .foregroundColor(.secondary)
             }
@@ -121,7 +128,7 @@ struct OnboardingView: View {
             // Camera selection (only when camera is selected)
             if selectedSource == .camera && !availableCameras.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Select Camera")
+                    Text(L("onboarding.selectCamera"))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.secondary)
 
@@ -138,7 +145,7 @@ struct OnboardingView: View {
             // Paired AirPods list (when AirPods is selected)
             if selectedSource == .airpods && !pairedAirPods.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Paired AirPods")
+                    Text(L("onboarding.pairedAirPods"))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.secondary)
 
@@ -185,7 +192,7 @@ struct OnboardingView: View {
                 onComplete(selectedSource, cameraID)
             }) {
                 HStack {
-                    Text("Continue")
+                    Text(L("onboarding.continue"))
                         .font(.system(size: 14, weight: .semibold))
                     Image(systemName: "arrow.right")
                         .font(.system(size: 12, weight: .semibold))
@@ -253,7 +260,7 @@ struct TrackingOptionCard: View {
                             .foregroundColor(isAvailable ? .primary : .secondary.opacity(0.5))
 
                         if !isAvailable {
-                            Text("Unavailable")
+                            Text(L("onboarding.unavailable"))
                                 .font(.system(size: 10, weight: .medium))
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal, 6)

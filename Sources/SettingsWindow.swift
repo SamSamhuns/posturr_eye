@@ -17,82 +17,6 @@ extension Color {
     })
 }
 
-// MARK: - Settings Window Controller
-
-class SettingsWindowController: NSObject, NSWindowDelegate {
-    var window: NSWindow?
-    weak var appDelegate: AppDelegate?
-
-    func showSettings(appDelegate: AppDelegate, fromStatusItem statusItem: NSStatusItem?) {
-        self.appDelegate = appDelegate
-
-        // Find the screen where the status item is located
-        let targetScreen = statusItem?.button?.window?.screen ?? NSScreen.main ?? NSScreen.screens.first
-
-        if let existingWindow = window {
-            // Show existing window where user left it (position is auto-saved)
-            existingWindow.makeKeyAndOrderFront(nil)
-            NSApp.setActivationPolicy(.regular)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-
-        let settingsView = SettingsView(appDelegate: appDelegate)
-        let hostingController = NSHostingController(rootView: settingsView)
-
-        // Calculate actual content size from SwiftUI view
-        let fittingSize = hostingController.sizeThatFits(in: CGSize(width: 480, height: CGFloat.greatestFiniteMagnitude))
-
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: fittingSize.width, height: fittingSize.height),
-            styleMask: [.titled, .closable, .miniaturizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "Settings"
-        window.contentViewController = hostingController
-        window.isReleasedWhenClosed = false
-        window.delegate = self
-        window.titlebarAppearsTransparent = false
-        window.backgroundColor = NSColor.windowBackgroundColor
-
-        // Restore saved window position, or center on status item's screen if no saved position
-        window.setFrameAutosaveName("SettingsWindow")
-        if !window.setFrameUsingName("SettingsWindow") {
-            // No saved position - center on target screen
-            if let screen = targetScreen {
-                centerWindow(window, on: screen)
-            } else {
-                window.center()
-            }
-        }
-
-        self.window = window
-        NSApp.setActivationPolicy(.regular)
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        // Only hide from Dock if user hasn't enabled "Show in Dock"
-        if let appDelegate = appDelegate, !appDelegate.showInDock {
-            NSApp.setActivationPolicy(.accessory)
-        }
-    }
-
-    private func centerWindow(_ window: NSWindow, on screen: NSScreen) {
-        let screenFrame = screen.frame
-        let windowSize = window.frame.size
-        let x = screenFrame.origin.x + (screenFrame.width - windowSize.width) / 2
-        let y = screenFrame.origin.y + (screenFrame.height - windowSize.height) / 2
-        window.setFrameOrigin(NSPoint(x: x, y: y))
-    }
-
-    func close() {
-        window?.close()
-    }
-}
-
 // MARK: - Compact Slider
 
 struct CompactSlider: View {
@@ -108,7 +32,7 @@ struct CompactSlider: View {
             HStack(spacing: 3) {
                 Text(title)
                     .font(.system(size: 11))
-                    .frame(width: 62, alignment: .leading)
+                    .frame(width: 82, alignment: .leading)
                 HelpButton(text: helpText)
             }
 
@@ -168,7 +92,7 @@ struct CompactWarningStylePicker: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach([WarningMode.blur, .vignette, .border, .solid, .none], id: \.self) { mode in
+            ForEach([WarningMode.blur, .glow, .border, .solid, .none], id: \.self) { mode in
                 Button(action: { selection = mode }) {
                     Text(mode.shortName)
                         .font(.system(size: 10, weight: selection == mode ? .semibold : .regular))
@@ -425,6 +349,118 @@ struct BrightnessSliderView: View {
     }
 }
 
+// MARK: - Compact Mode Picker
+
+struct CompactModePicker: View {
+    @Binding var selection: TrackingMode
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach([TrackingMode.manual, .automatic], id: \.self) { mode in
+                Button(action: { selection = mode }) {
+                    Text(mode == .manual ? L("settings.mode.manual") : L("settings.mode.automatic"))
+                        .font(.system(size: 10, weight: selection == mode ? .semibold : .regular))
+                        .foregroundColor(selection == mode ? .onBrandCyan : .primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(selection == mode ? Color.brandCyan : Color.clear)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.primary.opacity(0.06))
+        )
+    }
+}
+
+// MARK: - Device Status Row
+
+struct DeviceStatusRow: View {
+    let source: TrackingSource
+    let isCalibrated: Bool
+    let isConnected: Bool
+    let isPreferred: Bool
+    var isActive: Bool = false
+    var cameraDropdown: AnyView? = nil
+    let onCalibrate: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            // Device icon and name
+            Image(systemName: source.icon)
+                .font(.system(size: 10))
+                .foregroundColor(isPreferred ? .brandCyan : .secondary)
+                .frame(width: 14)
+
+            Text(source.displayName)
+                .font(.system(size: 11, weight: isPreferred ? .medium : .regular))
+                .frame(width: 55, alignment: .leading)
+
+            // Calibration status
+            HStack(spacing: 3) {
+                Image(systemName: isCalibrated ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 9))
+                    .foregroundColor(isCalibrated ? .green : .orange)
+                Text(isCalibrated ? L("settings.calibrated") : L("settings.notCalibrated"))
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            }
+
+            if source == .camera, let dropdown = cameraDropdown {
+                dropdown
+            } else if source == .airpods {
+                // Connection status
+                HStack(spacing: 3) {
+                    Circle()
+                        .fill(isConnected ? Color.green : Color.secondary.opacity(0.3))
+                        .frame(width: 6, height: 6)
+                    Text(isConnected ? L("settings.connected") : L("settings.notConnected"))
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            if isActive {
+                Text(L("settings.active"))
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.brandCyan)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Color.brandCyan.opacity(0.12)))
+            }
+
+            // Calibrate button
+            Button(action: onCalibrate) {
+                Text(L("settings.recalibrate"))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.onBrandCyan)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.brandCyan)
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.primary.opacity(0.03))
+        )
+    }
+}
+
 // MARK: - Compact Tracking Source Picker
 
 struct CompactTrackingSourcePicker: View {
@@ -478,27 +514,20 @@ struct SubtleDivider: View {
 extension WarningMode {
     var displayName: String {
         switch self {
-        case .blur: return "Blur"
-        case .vignette: return "Vignette"
-        case .border: return "Border"
-        case .solid: return "Solid"
-        case .none: return "None"
+        case .blur: return L("warningMode.blur")
+        case .glow: return L("warningMode.glow")
+        case .border: return L("warningMode.border")
+        case .solid: return L("warningMode.solid")
+        case .none: return L("warningMode.none")
         }
     }
 
-    var shortName: String {
-        switch self {
-        case .blur: return "Blur"
-        case .vignette: return "Vignette"
-        case .border: return "Border"
-        case .solid: return "Solid"
-        case .none: return "None"
-        }
-    }
+    var shortName: String { displayName }
 }
 
 // MARK: - Settings View
 
+@MainActor
 struct SettingsView: View {
     let appDelegate: AppDelegate
     let settingsProfileManager: SettingsProfileManager
@@ -522,7 +551,13 @@ struct SettingsView: View {
     @State private var toggleShortcut: KeyboardShortcut
     @State private var detectionModeSlider: Double
     @State private var trackingSource: TrackingSource
+    @State private var trackingModeSelection: TrackingMode
+    @State private var preferredSource: TrackingSource
     @State private var airPodsAvailable: Bool
+    @State private var airPodsConnected: Bool
+    @State private var cameraCalibrated: Bool
+    @State private var airPodsCalibrated: Bool
+    @State private var activeSource: TrackingSource
     @State private var settingsProfiles: [SettingsProfile]
     @State private var selectedSettingsProfileID: String
     @State private var lastSelectedSettingsProfileID: String
@@ -538,10 +573,10 @@ struct SettingsView: View {
     let detectionModes: [DetectionMode] = [.responsive, .balanced, .performance]
 
     let intensityValues: [Double] = [0.08, 0.15, 0.35, 0.65, 1.2]
-    let intensityLabels = ["Gentle", "Easy", "Medium", "Firm", "Aggressive"]
+    var intensityLabels: [String] { [L("settings.intensity.gentle"), L("settings.intensity.easy"), L("settings.intensity.medium"), L("settings.intensity.firm"), L("settings.intensity.aggressive")] }
 
     let deadZoneValues: [Double] = [0.0, 0.08, 0.15, 0.25, 0.40]
-    let deadZoneLabels = ["Strict", "Tight", "Medium", "Relaxed", "Loose"]
+    var deadZoneLabels: [String] { [L("settings.deadZone.strict"), L("settings.deadZone.tight"), L("settings.deadZone.medium"), L("settings.deadZone.relaxed"), L("settings.deadZone.loose")] }
 
     init(appDelegate: AppDelegate) {
         self.init(appDelegate: appDelegate, settingsProfileManager: appDelegate.settingsProfileManager)
@@ -580,7 +615,15 @@ struct SettingsView: View {
         _toggleShortcut = State(initialValue: appDelegate.toggleShortcut)
         _detectionModeSlider = State(initialValue: Double(detectionModes.firstIndex(of: profileDetectionMode) ?? 0))
         _trackingSource = State(initialValue: appDelegate.trackingSource)
+        _trackingModeSelection = State(initialValue: appDelegate.trackingStore.withState { $0.trackingMode })
+        _preferredSource = State(initialValue: appDelegate.trackingStore.withState { $0.preferredSource })
         _airPodsAvailable = State(initialValue: appDelegate.airPodsDetector.isAvailable)
+        let needsAirPods = appDelegate.trackingStore.withState { $0.trackingMode } == .automatic ||
+                           appDelegate.trackingSource == .airpods
+        _airPodsConnected = State(initialValue: needsAirPods ? appDelegate.airPodsDetector.isBluetoothConnected : false)
+        _cameraCalibrated = State(initialValue: appDelegate.cameraCalibration?.isValid ?? false)
+        _airPodsCalibrated = State(initialValue: appDelegate.airPodsCalibration?.isValid ?? false)
+        _activeSource = State(initialValue: appDelegate.activeTrackingSource)
         settingsProfileManager.ensureProfilesLoaded()
         let snapshot = settingsProfileManager.profilesState()
         let profiles = snapshot.profiles
@@ -599,14 +642,14 @@ struct SettingsView: View {
                         .resizable()
                         .frame(width: 28, height: 28)
                 }
-                Text("Posturr")
+                Text("Dorso")
                     .font(.system(size: 15, weight: .semibold))
 
                 Spacer()
 
                 // Social links
                 HStack(spacing: 4) {
-                    Link(destination: URL(string: "https://github.com/tldev/posturr")!) {
+                    Link(destination: URL(string: "https://github.com/tldev/dorso")!) {
                         GitHubIcon(color: Color.secondary.opacity(0.6))
                             .frame(width: 14, height: 14)
                             .padding(3)
@@ -616,7 +659,7 @@ struct SettingsView: View {
                     .onHover { hovering in
                         if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
                     }
-                    .help("View on GitHub")
+                    .help(L("settings.viewOnGitHub"))
 
                     Link(destination: URL(string: "https://discord.gg/6Ufy2SnXDW")!) {
                         DiscordIcon(color: Color.secondary.opacity(0.6))
@@ -628,7 +671,7 @@ struct SettingsView: View {
                     .onHover { hovering in
                         if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
                     }
-                    .help("Join Discord")
+                    .help(L("settings.joinDiscord"))
                 }
 
                 if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
@@ -644,76 +687,165 @@ struct SettingsView: View {
 
             SubtleDivider()
 
-            // Tracking row (not part of profile)
-            HStack(spacing: 8) {
-                Text("Tracking")
-                    .font(.system(size: 11, weight: .medium))
-                    .frame(width: 58, alignment: .leading)
+            // Tracking section (not part of profile)
+            VStack(spacing: 6) {
+                // Mode row
+                HStack(spacing: 8) {
+                    Text(L("settings.tracking"))
+                        .font(.system(size: 11, weight: .medium))
+                        .frame(width: 82, alignment: .leading)
 
-                CompactTrackingSourcePicker(
-                    selection: $trackingSource,
-                    airPodsAvailable: airPodsAvailable
-                )
-                .frame(width: 130)
-                .onChange(of: trackingSource) { newValue in
-                    if newValue != appDelegate.trackingSource {
-                        appDelegate.switchTrackingSource(to: newValue)
-                    }
-                }
+                    CompactModePicker(selection: $trackingModeSelection)
+                        .frame(width: 150)
 
-                if trackingSource == .camera {
-                    if availableCameras.isEmpty {
-                        Text("No cameras")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    } else {
-                        Picker("", selection: $selectedCameraID) {
-                            ForEach(availableCameras, id: \.id) { camera in
-                                Text(camera.name).tag(camera.id)
+                    HelpButton(text: L("settings.tracking.help"))
+                        .onChange(of: trackingModeSelection) { newValue in
+                            Task { @MainActor in
+                                await appDelegate.setTrackingMode(newValue)
+                                activeSource = appDelegate.activeTrackingSource
                             }
                         }
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity)
-                        .onChange(of: selectedCameraID) { newValue in
-                            if newValue != appDelegate.selectedCameraID {
-                                appDelegate.selectedCameraID = newValue
-                                appDelegate.saveSettings()
-                                appDelegate.restartCamera()
-                            }
-                        }
-                    }
-                } else {
-                    // AirPods status
-                    HStack(spacing: 4) {
-                        Image(systemName: airPodsAvailable ? "checkmark.circle.fill" : "exclamationmark.circle")
-                            .foregroundColor(airPodsAvailable ? .green : .secondary)
-                            .font(.system(size: 10))
-                        Text(airPodsAvailable ? "Connected" : "Not connected")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
+
                     Spacer()
                 }
+                .frame(height: 26)
 
-                // Recalibrate button
-                Button(action: { appDelegate.startCalibration() }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 10, weight: .semibold))
-                        Text("Recalibrate")
-                            .font(.system(size: 11, weight: .medium))
+                if trackingModeSelection == .manual {
+                    // Manual mode: source picker + device row for selected source
+                    HStack(spacing: 8) {
+                        Text("")
+                            .frame(width: 82)
+
+                        CompactTrackingSourcePicker(
+                            selection: $trackingSource,
+                            airPodsAvailable: airPodsAvailable
+                        )
+                        .frame(width: 150)
+                        .onChange(of: trackingSource) { newValue in
+                            if newValue != appDelegate.trackingSource {
+                                Task { @MainActor in
+                                    await appDelegate.switchTrackingSource(to: newValue)
+                                }
+                            }
+                        }
+
+                        Spacer()
                     }
-                    .foregroundColor(.onBrandCyan)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color.brandCyan)
+                    .frame(height: 26)
+
+                    DeviceStatusRow(
+                        source: trackingSource,
+                        isCalibrated: trackingSource == .camera ? cameraCalibrated : airPodsCalibrated,
+                        isConnected: trackingSource == .camera ? !availableCameras.isEmpty : airPodsConnected,
+                        isPreferred: false,
+                        isActive: appDelegate.state.isActive,
+                        cameraDropdown: trackingSource == .camera && !availableCameras.isEmpty ? AnyView(
+                            Picker("", selection: $selectedCameraID) {
+                                ForEach(availableCameras, id: \.id) { camera in
+                                    Text(camera.name).tag(camera.id)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(maxWidth: 140)
+                            .onChange(of: selectedCameraID) { newValue in
+                                if newValue != appDelegate.selectedCameraID {
+                                    appDelegate.selectedCameraID = newValue
+                                    appDelegate.saveSettings()
+                                    appDelegate.restartCamera()
+                                }
+                            }
+                        ) : nil,
+                        onCalibrate: {
+                            appDelegate.startCalibration()
+                        }
                     )
+                } else {
+                    // Automatic mode layout
+                    VStack(spacing: 6) {
+                        // Preferred source picker
+                        HStack(spacing: 8) {
+                            Text(L("settings.preferred"))
+                                .font(.system(size: 11, weight: .medium))
+                                .frame(width: 82, alignment: .leading)
+
+                            CompactTrackingSourcePicker(
+                                selection: $preferredSource,
+                                airPodsAvailable: true
+                            )
+                            .frame(width: 150)
+                            .onChange(of: preferredSource) { newValue in
+                                Task { @MainActor in
+                                    await appDelegate.setPreferredSource(newValue)
+                                    activeSource = appDelegate.activeTrackingSource
+                                }
+                            }
+
+                            Spacer()
+                        }
+                        .frame(height: 26)
+
+                        // Device status rows
+                        DeviceStatusRow(
+                            source: .camera,
+                            isCalibrated: cameraCalibrated,
+                            isConnected: !availableCameras.isEmpty,
+                            isPreferred: preferredSource == .camera,
+                            isActive: activeSource == .camera && appDelegate.state.isActive,
+                            cameraDropdown: availableCameras.isEmpty ? nil : AnyView(
+                                Picker("", selection: $selectedCameraID) {
+                                    ForEach(availableCameras, id: \.id) { camera in
+                                        Text(camera.name).tag(camera.id)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(maxWidth: 140)
+                                .onChange(of: selectedCameraID) { newValue in
+                                    if newValue != appDelegate.selectedCameraID {
+                                        appDelegate.selectedCameraID = newValue
+                                        appDelegate.saveSettings()
+                                        appDelegate.restartCamera()
+                                    }
+                                }
+                            ),
+                            onCalibrate: {
+                                appDelegate.startCalibrationForSource(.camera)
+                            }
+                        )
+
+                        DeviceStatusRow(
+                            source: .airpods,
+                            isCalibrated: airPodsCalibrated,
+                            isConnected: airPodsConnected,
+                            isPreferred: preferredSource == .airpods,
+                            isActive: activeSource == .airpods && appDelegate.state.isActive,
+                            onCalibrate: {
+                                appDelegate.startCalibrationForSource(.airpods)
+                            }
+                        )
+
+                        // Warning banner when preferred device not calibrated
+                        if (preferredSource == .camera && !cameraCalibrated)
+                            || (preferredSource == .airpods && !airPodsCalibrated)
+                        {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.orange)
+                                Text(L("settings.preferredNeedsCalibration"))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color.orange.opacity(0.08))
+                            )
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
             }
-            .frame(height: 26)
             .padding(.vertical, 10)
 
             // Profile Section Card
@@ -721,10 +853,10 @@ struct SettingsView: View {
                 // Profile header row - aligned with Warning row below
                 HStack(spacing: 8) {
                     HStack(spacing: 3) {
-                        Text("Profile")
+                        Text(L("settings.profile"))
                             .font(.system(size: 11, weight: .medium))
-                            .frame(width: 62, alignment: .leading)
-                        HelpButton(text: "Save different configurations for different situations. Switch profiles to instantly apply all settings below.")
+                            .frame(width: 82, alignment: .leading)
+                        HelpButton(text: L("settings.profile.help"))
                     }
 
                     HStack(spacing: 4) {
@@ -747,7 +879,7 @@ struct SettingsView: View {
                             HStack(spacing: 4) {
                                 Image(systemName: "plus")
                                     .font(.system(size: 10, weight: .semibold))
-                                Text("New")
+                                Text(L("settings.profile.new"))
                                     .font(.system(size: 11, weight: .medium))
                             }
                             .foregroundColor(.onBrandCyan)
@@ -785,10 +917,10 @@ struct SettingsView: View {
                 // Warning row
                 HStack(spacing: 8) {
                     HStack(spacing: 3) {
-                        Text("Warning")
+                        Text(L("settings.warning"))
                             .font(.system(size: 11))
-                            .frame(width: 62, alignment: .leading)
-                        HelpButton(text: "Blur obscures the screen, Vignette shows edge glow, Border shows colored borders, Solid fills screen. None disables visual warnings.")
+                            .frame(width: 82, alignment: .leading)
+                        HelpButton(text: L("settings.warning.help"))
                     }
 
                     CompactWarningStylePicker(selection: $warningMode)
@@ -809,8 +941,8 @@ struct SettingsView: View {
 
                 // Sliders
                 CompactSlider(
-                    title: "Dead Zone",
-                    helpText: "How much you can move before warning starts. A relaxed dead zone allows more natural movement.",
+                    title: L("settings.deadZone"),
+                    helpText: L("settings.deadZone.help"),
                     value: $deadZoneSlider,
                     range: 0...4,
                     step: 1,
@@ -824,8 +956,8 @@ struct SettingsView: View {
                 }
 
                 CompactSlider(
-                    title: "Intensity",
-                    helpText: "How quickly the warning increases as you slouch past the dead zone.",
+                    title: L("settings.intensity"),
+                    helpText: L("settings.intensity.help"),
                     value: $intensitySlider,
                     range: 0...4,
                     step: 1,
@@ -839,8 +971,8 @@ struct SettingsView: View {
                 }
 
                 CompactSlider(
-                    title: "Delay",
-                    helpText: "Grace period before warning activates. Allows brief glances at keyboard without triggering.",
+                    title: L("settings.delay"),
+                    helpText: L("settings.delay.help"),
                     value: $warningOnsetDelay,
                     range: 0...30,
                     step: 1,
@@ -852,8 +984,8 @@ struct SettingsView: View {
                 }
 
                 CompactSlider(
-                    title: "Detection",
-                    helpText: "Balance responsiveness vs battery. Responsive detects quickly, Performance saves battery.",
+                    title: L("settings.detection"),
+                    helpText: L("settings.detection.help"),
                     value: $detectionModeSlider,
                     range: 0...2,
                     step: 1,
@@ -878,8 +1010,8 @@ struct SettingsView: View {
             VStack(spacing: 6) {
                 HStack(spacing: 0) {
                     CompactToggle(
-                        title: "Launch at login",
-                        helpText: "Automatically start Posturr when you log in",
+                        title: L("settings.launchAtLogin"),
+                        helpText: L("settings.launchAtLogin.help"),
                         isOn: $launchAtLogin
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -896,8 +1028,8 @@ struct SettingsView: View {
                     }
 
                     CompactToggle(
-                        title: "Show in dock",
-                        helpText: "Keep Posturr in Dock and Cmd+Tab",
+                        title: L("settings.showInDock"),
+                        helpText: L("settings.showInDock.help"),
                         isOn: $showInDock
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -914,10 +1046,10 @@ struct SettingsView: View {
 
                 HStack(spacing: 0) {
                     CompactToggle(
-                        title: "Blur when away",
+                        title: L("settings.blurWhenAway"),
                         helpText: trackingSource == .airpods
-                            ? "Apply full blur when you step away. Only available when using camera for detection."
-                            : "Apply full blur when you step away",
+                            ? L("settings.blurWhenAway.help.airpods")
+                            : L("settings.blurWhenAway.help.camera"),
                         isOn: $blurWhenAway,
                         isDisabled: trackingSource == .airpods
                     )
@@ -928,16 +1060,14 @@ struct SettingsView: View {
                     }
 
                     CompactToggle(
-                        title: "Pause on the go",
-                        helpText: "Auto-pause on laptop-only display",
+                        title: L("settings.pauseOnTheGo"),
+                        helpText: L("settings.pauseOnTheGo.help"),
                         isOn: $pauseOnTheGo
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .onChange(of: pauseOnTheGo) { newValue in
-                        appDelegate.pauseOnTheGo = newValue
-                        appDelegate.saveSettings()
-                        if !newValue && appDelegate.state == .paused(.onTheGo) {
-                            appDelegate.state = .monitoring
+                        Task { @MainActor in
+                            await appDelegate.setPauseOnTheGoEnabled(newValue)
                         }
                     }
                 }
@@ -958,8 +1088,8 @@ struct SettingsView: View {
 
                     #if !APP_STORE
                     CompactToggle(
-                        title: "Compatibility mode",
-                        helpText: "Enable if blur isn't appearing",
+                        title: L("settings.compatibilityMode"),
+                        helpText: L("settings.compatibilityMode.help"),
                         isOn: $useCompatibilityMode
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -982,10 +1112,10 @@ struct SettingsView: View {
         .padding(16)
         .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
-        .alert("New Profile", isPresented: $showingNewProfilePrompt) {
-            TextField("Profile name", text: $newProfileName)
-            Button("Cancel", role: .cancel) {}
-            Button("Create") {
+        .alert(L("settings.profile.newTitle"), isPresented: $showingNewProfilePrompt) {
+            TextField(L("settings.profile.namePlaceholder"), text: $newProfileName)
+            Button(L("common.cancel"), role: .cancel) {}
+            Button(L("settings.profile.create")) {
                 let trimmedName = newProfileName.trimmingCharacters(in: .whitespacesAndNewlines)
                 let profileName = trimmedName.isEmpty ? nextDefaultProfileName() : trimmedName
                 let profile = settingsProfileManager.createProfile(
@@ -1003,11 +1133,11 @@ struct SettingsView: View {
                 syncProfileSettings()
             }
         } message: {
-            Text("Name your settings profile.")
+            Text(L("settings.profile.namePrompt"))
         }
-        .alert("Delete Profile", isPresented: $showingDeleteConfirmation) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
+        .alert(L("settings.profile.deleteTitle"), isPresented: $showingDeleteConfirmation) {
+            Button(L("common.cancel"), role: .cancel) {}
+            Button(L("settings.profile.delete"), role: .destructive) {
                 if settingsProfileManager.deleteProfile(id: selectedSettingsProfileID) {
                     settingsProfiles = settingsProfileManager.settingsProfiles
                     if let newID = settingsProfileManager.currentSettingsProfileID {
@@ -1019,8 +1149,26 @@ struct SettingsView: View {
                 }
             }
         } message: {
-            Text("Are you sure you want to delete this profile? This cannot be undone.")
+            Text(L("settings.profile.deleteMessage"))
         }
+        .onAppear {
+            appDelegate.onCalibrationComplete = {
+                cameraCalibrated = appDelegate.cameraCalibration?.isValid ?? false
+                airPodsCalibrated = appDelegate.airPodsCalibration?.isValid ?? false
+                airPodsConnected = appDelegate.airPodsDetector.isBluetoothConnected
+                activeSource = appDelegate.activeTrackingSource
+            }
+            appDelegate.onActiveSourceChanged = {
+                activeSource = appDelegate.activeTrackingSource
+            }
+        }
+        .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
+            if trackingModeSelection == .automatic || trackingSource == .airpods {
+                airPodsConnected = appDelegate.airPodsDetector.isBluetoothConnected
+            }
+        }
+        // Cleanup happens in SettingsWindowController.windowWillClose
+        // (not onDisappear, which fires when calibration window covers this view)
     }
 
     private func syncProfileSettings() {
@@ -1277,10 +1425,10 @@ struct CompactShortcutRecorder: View {
                     onShortcutChange()
                 }
 
-            Text("Shortcut")
+            Text(L("settings.shortcut"))
                 .font(.system(size: 11))
 
-            HelpButton(text: "Global keyboard shortcut to toggle Posturr. Click the field and press your desired key combination.")
+            HelpButton(text: L("settings.shortcut.help"))
 
             Button(action: {
                 isRecording.toggle()
@@ -1290,7 +1438,7 @@ struct CompactShortcutRecorder: View {
                     stopRecording()
                 }
             }) {
-                Text(isRecording ? "Press..." : shortcut.displayString)
+                Text(isRecording ? L("settings.shortcut.press") : shortcut.displayString)
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundColor(isRecording ? .secondary : (isEnabled ? .primary : .secondary))
                     .lineLimit(1)

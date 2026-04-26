@@ -4,7 +4,10 @@ import AppKit
 
 // MARK: - Window Controller
 
-class AnalyticsWindowController: NSWindowController {
+@MainActor
+class AnalyticsWindowController: NSWindowController, NSWindowDelegate {
+    weak var appDelegate: AppDelegate?
+
     convenience init() {
         let hostingController = NSHostingController(rootView: AnalyticsView())
         let fittingSize = hostingController.sizeThatFits(in: CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
@@ -15,7 +18,7 @@ class AnalyticsWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Analytics"
+        window.title = L("analytics.title")
         window.contentViewController = hostingController
         window.isReleasedWhenClosed = false
         window.titlebarAppearsTransparent = false
@@ -23,6 +26,13 @@ class AnalyticsWindowController: NSWindowController {
         window.center()
 
         self.init(window: window)
+        window.delegate = self
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        if let window = notification.object as? NSWindow {
+            appDelegate?.restoreAccessoryActivationPolicyIfNeeded(excluding: window)
+        }
     }
 }
 
@@ -42,9 +52,9 @@ struct AnalyticsView: View {
                         .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 2)
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Posture Analytics")
+                    Text(L("analytics.header"))
                         .font(.system(size: 22, weight: .semibold))
-                    Text("Track your habits and improvement over time")
+                    Text(L("analytics.tagline"))
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 }
@@ -56,10 +66,10 @@ struct AnalyticsView: View {
                         .frame(width: 52, height: 52)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Today's Score")
+                        Text(L("analytics.todayScore"))
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.secondary)
-                        Text(String(format: "%.0f%%", manager.todayStats.postureScore))
+                        Text(formatPercent(manager.todayStats.postureScore))
                             .font(.system(size: 20, weight: .bold))
                             .foregroundColor(scoreColor(manager.todayStats.postureScore))
                     }
@@ -81,21 +91,21 @@ struct AnalyticsView: View {
                 // Left Col: Stats
                 VStack(spacing: 12) {
                     AnalyticsStatCard(
-                        title: "Monitoring Time",
+                        title: L("analytics.monitoringTime"),
                         value: formatDuration(manager.todayStats.totalSeconds),
                         icon: "clock",
                         color: .brandCyan
                     )
 
                     AnalyticsStatCard(
-                        title: "Slouch Duration",
+                        title: L("analytics.slouchDuration"),
                         value: formatDuration(manager.todayStats.slouchSeconds),
                         icon: "figure.fall",
                         color: .orange
                     )
 
                     AnalyticsStatCard(
-                        title: "Slouch Events",
+                        title: L("analytics.slouchEvents"),
                         value: "\(manager.todayStats.slouchCount)",
                         icon: "exclamationmark.circle",
                         color: .red
@@ -109,7 +119,7 @@ struct AnalyticsView: View {
                         Image(systemName: "chart.bar")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.brandCyan)
-                        Text("Last 7 Days")
+                        Text(L("analytics.last7Days"))
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.primary)
                     }
@@ -168,17 +178,50 @@ struct AnalyticsView: View {
         return .orange
     }
     
+    private static let hourMinuteFormatter: DateComponentsFormatter = {
+        let f = DateComponentsFormatter()
+        f.unitsStyle = .abbreviated
+        f.allowedUnits = [.hour, .minute]
+        return f
+    }()
+
+    private static let minuteSecondFormatter: DateComponentsFormatter = {
+        let f = DateComponentsFormatter()
+        f.unitsStyle = .abbreviated
+        f.allowedUnits = [.minute, .second]
+        return f
+    }()
+
+    private static let secondFormatter: DateComponentsFormatter = {
+        let f = DateComponentsFormatter()
+        f.unitsStyle = .abbreviated
+        f.allowedUnits = [.second]
+        return f
+    }()
+
+    private static let percentFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .percent
+        f.maximumFractionDigits = 0
+        f.minimumFractionDigits = 0
+        f.locale = Locale.autoupdatingCurrent
+        return f
+    }()
+
+    private func formatPercent(_ score: Double) -> String {
+        Self.percentFormatter.string(from: NSNumber(value: score / 100)) ?? "\(Int(round(score)))%"
+    }
+
     func formatDuration(_ seconds: TimeInterval) -> String {
-        let h = Int(seconds) / 3600
-        let m = (Int(seconds) % 3600) / 60
-        let s = Int(seconds) % 60
-        
-        if h > 0 {
-            return "\(h)h \(m)m"
-        } else if m > 0 {
-            return "\(m)m \(s)s"
+        let formatter: DateComponentsFormatter
+        if seconds >= 3600 {
+            formatter = Self.hourMinuteFormatter
+        } else if seconds >= 60 {
+            formatter = Self.minuteSecondFormatter
+        } else {
+            formatter = Self.secondFormatter
         }
-        return "\(s)s"
+        return formatter.string(from: seconds) ?? Self.secondFormatter.string(from: 0) ?? "0"
     }
 }
 

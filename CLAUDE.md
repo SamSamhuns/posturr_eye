@@ -1,4 +1,4 @@
-# Claude Code Instructions for Posturr
+# Claude Code Instructions for Dorso
 
 ## Releasing
 
@@ -16,17 +16,6 @@ When the user says "ship it", perform the complete release workflow:
 8. **Update README.md** contributors section if applicable
 9. **Commit and push** changelog/readme updates
 10. **Comment on PR/issue** thanking contributor and linking to release
-11. **Update Homebrew tap**:
-    ```bash
-    # Get SHA256
-    gh release view vX.Y.Z --repo tldev/posturr --json assets --jq '.assets[] | select(.name | endswith(".zip")) | .url' | xargs curl -sL | shasum -a 256 | cut -d' ' -f1
-
-    # Update tap
-    cd /tmp && rm -rf homebrew-tap && git clone git@github.com:tldev/homebrew-tap.git
-    cd homebrew-tap
-    # Update version and sha256 in Casks/posturr.rb
-    git add . && git commit -m "Update Posturr to vX.Y.Z" && git push
-    ```
 
 ### GitHub Release (Direct Distribution)
 
@@ -67,8 +56,8 @@ gh release edit vX.Y.Z --notes "$(cat <<'EOF'
 
 ## Installation
 
-1. Download `Posturr-vX.Y.Z.dmg` or `Posturr-vX.Y.Z.zip`
-2. Drag `Posturr.app` to Applications
+1. Download `Dorso-vX.Y.Z.dmg` or `Dorso-vX.Y.Z.zip`
+2. Drag `Dorso.app` to Applications
 3. Launch normally - no warnings!
 4. Grant camera permission and complete calibration
 
@@ -101,53 +90,35 @@ After updating the GitHub release notes, also update `CHANGELOG.md` with a new e
 - Include the release date in YYYY-MM-DD format
 - Commit and push the changelog update
 
-### Update Homebrew Cask
-After each GitHub release, update the Homebrew tap at https://github.com/tldev/homebrew-tap:
-
-```bash
-# Get the SHA256 of the new release ZIP
-gh release view vX.Y.Z --repo tldev/posturr --json assets --jq '.assets[] | select(.name | endswith(".zip")) | .digest'
-
-# Clone via SSH (required for push), update, and push
-cd /tmp && rm -rf homebrew-tap && git clone git@github.com:tldev/homebrew-tap.git
-cd homebrew-tap
-
-# Edit Casks/posturr.rb - update version and sha256
-# version "X.Y.Z"
-# sha256 "<new-sha256-without-sha256:-prefix>"
-
-git add . && git commit -m "Update Posturr to vX.Y.Z" && git push
-```
-
 ### App Store Release
 For App Store submissions, run these steps after the GitHub release:
 
 ```bash
-cd /Users/tjohnell/projects/posturr
+cd /Users/tjohnell/projects/dorso
 
 # 1. Build for App Store (excludes private APIs)
 ./build.sh --appstore
 
 # 2. Copy to appstore folder and sign
-rm -rf build-appstore/Posturr.app
-cp -r build/Posturr.app build-appstore/
+rm -rf build-appstore/Dorso.app
+cp -r build/Dorso.app build-appstore/
 cd build-appstore
 
 codesign --force --options runtime \
-    --entitlements Posturr.entitlements \
+    --entitlements Dorso.entitlements \
     --sign "Apple Distribution: Thomas Johnell (KBF2YGT2KP)" \
     --timestamp \
-    Posturr.app
+    Dorso.app
 
 # 3. Create installer package
-rm -f Posturr.pkg
+rm -f Dorso.pkg
 productbuild \
-    --component Posturr.app /Applications \
+    --component Dorso.app /Applications \
     --sign "3rd Party Mac Developer Installer: Thomas Johnell (KBF2YGT2KP)" \
-    Posturr.pkg
+    Dorso.pkg
 
 # 4. Upload (ask user for app-specific password)
-xcrun altool --upload-app -f Posturr.pkg -t macos -u tjohnell@gmail.com -p APP_SPECIFIC_PASSWORD
+xcrun altool --upload-app -f Dorso.pkg -t macos -u tjohnell@gmail.com -p APP_SPECIFIC_PASSWORD
 ```
 
 **Important:** The upload requires an app-specific password from appleid.apple.com. Ask the user to provide it when uploading - do not store it in files.
@@ -161,7 +132,8 @@ After upload:
 
 ## Build Configurations
 
-- `./build.sh` - Regular build with private APIs (for GitHub/direct distribution)
+- `./build.sh --dev` - Fast iteration: debug config, host arch only (~10s warm). Use this during development. Not suitable for distribution — debug binary, non-universal.
+- `./build.sh` - Regular build with private APIs (release, universal, for GitHub/direct distribution)
 - `./build.sh --appstore` - App Store build without private APIs
 - `./build.sh --release` - Regular build + creates ZIP archive
 
@@ -169,7 +141,7 @@ After upload:
 
 **Always kill the existing process and remove old app before installing:**
 ```bash
-pkill -x Posturr; rm -rf /Applications/Posturr.app && cp -r build/Posturr.app /Applications/
+pkill -x Dorso; rm -rf /Applications/Dorso.app && cp -r build/Dorso.app /Applications/
 ```
 
 This prevents file locking issues and permission errors from code signing.
@@ -178,7 +150,7 @@ This prevents file locking issues and permission errors from code signing.
 
 To reset the app and trigger the onboarding flow again:
 ```bash
-pkill -x Posturr
+pkill -x Dorso
 rm -f ~/Library/Preferences/com.thelazydeveloper.posturr.plist
 killall cfprefsd
 ```
@@ -189,7 +161,7 @@ Note: The bundle ID is `com.thelazydeveloper.posturr`, NOT `com.posturr`.
 
 To rebuild, reinstall, clear settings and permissions, and launch the app:
 ```bash
-pkill -x Posturr; ./build.sh && rm -rf /Applications/Posturr.app && cp -r build/Posturr.app /Applications/ && rm -f ~/Library/Preferences/com.thelazydeveloper.posturr.plist && killall cfprefsd 2>/dev/null && tccutil reset Camera com.thelazydeveloper.posturr 2>/dev/null && tccutil reset Motion com.thelazydeveloper.posturr 2>/dev/null && tccutil reset Bluetooth com.thelazydeveloper.posturr 2>/dev/null; open /Applications/Posturr.app
+pkill -x Dorso; ./build.sh --dev && rm -rf /Applications/Dorso.app && cp -r build/Dorso.app /Applications/ && rm -f ~/Library/Preferences/com.thelazydeveloper.posturr.plist && killall cfprefsd 2>/dev/null && tccutil reset Camera com.thelazydeveloper.posturr 2>/dev/null && tccutil reset Motion com.thelazydeveloper.posturr 2>/dev/null && tccutil reset Bluetooth com.thelazydeveloper.posturr 2>/dev/null; open /Applications/Dorso.app
 ```
 
 ## Code Quality Rules
